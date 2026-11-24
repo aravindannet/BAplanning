@@ -1,0 +1,28 @@
+{
+  "name": "beast-academy",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "import:plan": "node scripts/import-plan.mjs source-pdfs/BA4Sequence.pdf 4 src/data/level4.json && node scripts/import-plan.mjs source-pdfs/BA5Sequence.pdf 5 src/data/level5.json",
+    "test": "node --test scripts/*.test.mjs"
+  },
+  "dependencies": {
+    "mongodb": "^7.3.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@netlify/functions": "^6.1.2",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "pdfjs-dist": "4.10.38",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.4"
+  }
+}

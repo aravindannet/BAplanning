@@ -1,0 +1,87 @@
+import type { Config } from '@netlify/functions';
+import { getProgressCollection, isMongoConfigured } from './_mongo';
+import { findTask, getPlan } from './_plan';
+import { sendBoxComplete } from './_notify';
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
+
+function authorized(req: Request): boolean {
+  const pin = process.env.APP_PIN;
+  if (!pin) return true;
+  return req.headers.get('x-app-pin') === pin;
+}
+
+export default async (req: Request): Promise<Response> => {
+  if (!authorized(req)) return json({ error: 'pin_required' }, 401);
+  if (!isMongoConfigured()) return json({ error: 'MONGODB_URI is not configured' }, 503);
+
+  const col = await getProgressCollection();
+
+  if (req.method === 'GET') {
+    const level = new URL(req.url).searchParams.get('level') ?? '';
+    if (!getPlan(level)) return json({ error: 'unknown level' }, 400);
+    const doc = await col.findOne({ _id: `L${level}` });
+    return json({ done: doc?.done ?? [] });
+  }
+
+  if (req.method === 'POST') {
+    let body: { level?: unknown; taskId?: unknown; done?: unknown };
+    try {
+      body = await req.json();
+    } catch {
+      return json({ error: 'invalid json' }, 400);
+    }
+    const level = String(body.level ?? '');
+    const taskId = String(body.taskId ?? '');
+    const done = body.done === true;
+    const plan = getPlan(level);
+    if (!plan) return json({ error: 'unknown level' }, 400);
+    const found = findTask(plan, taskId);
+    if (!found) return json({ error: 'unknown task' }, 400);
+
+    const id = `L${level}`;
+    const now = new Date().toISOString();
+    const updated = await col.findOneAndUpdate(
+      { _id: id },
+      done
+        ? { $addToSet: { done: taskId }, $set: { updatedAt: now }, $setOnInsert: { notified: [] } }
+        : { $pull: { done: taskId }, $set: { updatedAt: now }, $setOnInsert: { notified: [] } },
+      { upsert: true, returnDocument: 'after' },
+    );
+    const doneIds = new Set(updated?.done ?? []);
+
+    let completedBox: string | null = null;
+    let emailed = false;
+    const { box, chapter } = found;
+    if (done && box.tasks.every((t) => doneIds.has(t.id))) {
+      completedBox = box.id;
+      // Claim the notification atomically: only the request that flips `notified` sends the email,
+      // so double-taps and un-tick/re-tick never produce a second message.
+      const claim = await col.updateOne({ _id: id, notified: { $ne: box.id } }, { $addToSet: { notified: box.id } });
+      if (claim.modifiedCount === 1) {
+        try {
+          emailed = await sendBoxComplete({
+            level: plan.level,
+            chapterNumber: chapter.number,
+            chapterTitle: chapter.title,
+            boxTitle: box.title,
+            taskCount: box.tasks.length,
+            boxesInChapter: chapter.boxes.length,
+            boxesDoneInChapter: chapter.boxes.filter((b) => b.tasks.every((t) => doneIds.has(t.id))).length,
+          });
+        } catch (err) {
+          console.error('[progress] notify failed', err);
+        }
+        // If nothing was sent (error or email not configured yet) release the claim so a later
+        // completion can try again once email is set up.
+        if (!emailed) await col.updateOne({ _id: id }, { $pull: { notified: box.id } });
+      }
+    }
+    return json({ done: [...doneIds], completedBox, emailed });
+  }
+
+  return json({ error: 'method not allowed' }, 405);
+};
+
+export const config: Config = { path: '/api/progress' };

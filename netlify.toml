@@ -1,0 +1,29 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  node_bundler = "esbuild"
+  # mongodb has optional native deps esbuild shouldn't bundle; ship it from node_modules.
+  external_node_modules = ["mongodb"]
+
+[dev]
+  command = "npm run dev"
+  targetPort = 5173
+
+# No SPA catch-all redirect: routes are hash-based (#/L4/c1), and a /* rewrite would also hijack
+# Vite's own module requests under `netlify dev`.
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
