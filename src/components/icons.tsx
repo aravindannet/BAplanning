@@ -20,10 +20,19 @@ export function PageIcon({ n, kind, delay = 0 }: { n: number; kind: TaskType; de
   );
 }
 
-/** Gold coin for one problem; a dashed pale coin means optional. */
-export function ProblemBadge({ n, optional, delay = 0 }: { n: number; optional: boolean; delay?: number }) {
+/** Gold coin for one problem; a dashed pale coin means optional. Clickable when the question is in the app. */
+export function ProblemBadge({ n, optional, delay = 0, state, onOpen }: { n: number; optional: boolean; delay?: number; state?: 'open' | 'solved'; onOpen?: () => void }) {
+  const cls = `coin${optional ? ' optional' : ''}${state ? ` live ${state}` : ''}`;
+  const label = `problem ${n}${optional ? ' (optional)' : ''}${state === 'solved' ? ', solved' : ''}`;
+  if (state && onOpen) {
+    return (
+      <button className={cls} aria-label={label} style={{ animationDelay: `${delay}ms` }} onClick={onOpen}>
+        {state === 'solved' ? '\u2713' : n}
+      </button>
+    );
+  }
   return (
-    <span className={`coin${optional ? ' optional' : ''}`} aria-label={`problem ${n}${optional ? ' (optional)' : ''}`} style={{ animationDelay: `${delay}ms` }}>
+    <span className={cls} aria-label={label} style={{ animationDelay: `${delay}ms` }}>
       {n}
     </span>
   );

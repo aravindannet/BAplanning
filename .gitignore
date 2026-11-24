@@ -7,3 +7,5 @@ dist
 .DS_Store
 source-pdfs
 *.tsbuildinfo
+.import-review
+problem-data

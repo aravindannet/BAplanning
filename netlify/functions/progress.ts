@@ -26,7 +26,7 @@ export default async (req: Request): Promise<Response> => {
   }
 
   if (req.method === 'POST') {
-    let body: { level?: unknown; taskId?: unknown; chapter?: unknown; done?: unknown };
+    let body: { level?: unknown; taskId?: unknown; chapter?: unknown; done?: unknown; passcode?: unknown };
     try {
       body = await req.json();
     } catch {
@@ -40,6 +40,9 @@ export default async (req: Request): Promise<Response> => {
 
     // Whole-chapter action: mark every task in a chapter done (or clear them all).
     if (body.chapter !== undefined) {
+      // Parent-only action: needs the chapter passcode (when one is configured).
+      const code = process.env.CHAPTER_PASSCODE;
+      if (code && String(body.passcode ?? '') !== code) return json({ error: 'wrong_passcode' }, 403);
       const chapter = plan.chapters.find((c) => c.number === Number(body.chapter));
       if (!chapter) return json({ error: 'unknown chapter' }, 400);
       const taskIds = chapter.boxes.flatMap((b) => b.tasks.map((t) => t.id));

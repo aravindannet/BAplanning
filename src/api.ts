@@ -32,5 +32,34 @@ export const saveTask = (level: number, taskId: string, done: boolean) =>
     body: JSON.stringify({ level, taskId, done }),
   });
 
-export const saveChapter = (level: number, chapter: number, done: boolean) =>
-  call<{ done: string[] }>('/api/progress', { method: 'POST', body: JSON.stringify({ level, chapter, done }) });
+export const saveChapter = (level: number, chapter: number, done: boolean, passcode: string) =>
+  call<{ done: string[] }>('/api/progress', { method: 'POST', body: JSON.stringify({ level, chapter, done, passcode }) });
+
+export interface ProblemCoverage {
+  available: number[];
+  solved: number[];
+}
+export interface ProblemView {
+  n: number;
+  book?: string;
+  page?: number;
+  prompt: string;
+  images: string[];
+  parts: { label: string }[];
+  solved: boolean;
+  attempts: number;
+}
+export interface CheckResult {
+  correct: boolean;
+  attempts: number;
+  hint?: string;
+  hintsLeft?: boolean;
+  results?: { label: string; ok: boolean }[];
+}
+export const fetchCoverage = (level: number, chapter: number) =>
+  call<ProblemCoverage>(`/api/problems?level=${level}&chapter=${chapter}`);
+export const fetchProblem = (level: number, chapter: number, n: number) =>
+  call<ProblemView>(`/api/problems?level=${level}&chapter=${chapter}&n=${n}`);
+export const checkProblem = (level: number, chapter: number, n: number, answers: Record<string, string>) =>
+  call<CheckResult>('/api/problems', { method: 'POST', body: JSON.stringify({ level, chapter, n, answers }) });
+export const problemImageUrl = (id: string) => `/api/problem-image?id=${encodeURIComponent(id)}&pin=${encodeURIComponent(getPin())}`;

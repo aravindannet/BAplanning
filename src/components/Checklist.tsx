@@ -9,7 +9,7 @@ import { TaskRow } from './TaskRow';
  * taller than the space it was given, it steps down a density level (smaller icons and type) until
  * everything fits, and re-measures when the window is resized.
  */
-function BoxView({ box, index, total, complete, done, onToggle }: { box: Box; index: number; total: number; complete: boolean; done: Set<string>; onToggle: (id: string) => void }) {
+function BoxView({ box, index, total, complete, done, onToggle, available, solved, onOpenProblem }: { box: Box; index: number; total: number; complete: boolean; done: Set<string>; onToggle: (id: string) => void; available: Set<number>; solved: Set<number>; onOpenProblem: (n: number, list: number[]) => void }) {
   const ref = useRef<HTMLElement>(null);
   const [density, setDensity] = useState(0);
   const [epoch, setEpoch] = useState(0);
@@ -45,7 +45,7 @@ function BoxView({ box, index, total, complete, done, onToggle }: { box: Box; in
       </div>
       <div className="tasks" style={{ ['--cols' as string]: box.tasks.length }}>
         {box.tasks.map((t, i) => (
-          <TaskRow key={t.id} task={t} index={i} done={done.has(t.id)} onToggle={() => onToggle(t.id)} />
+          <TaskRow key={t.id} task={t} index={i} done={done.has(t.id)} onToggle={() => onToggle(t.id)} available={available} solved={solved} onOpenProblem={onOpenProblem} />
         ))}
       </div>
     </section>
@@ -60,9 +60,12 @@ interface Props {
   onToggle: (box: Box, taskId: string) => void;
   onChapterAll: (chapterNo: number, done: boolean) => void;
   onNavigate: (level: number | null, chapter?: number, box?: number) => void;
+  available: Set<number>;
+  solved: Set<number>;
+  onOpenProblem: (n: number, list: number[]) => void;
 }
 
-export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAll, onNavigate }: Props) {
+export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAll, onNavigate, available, solved, onOpenProblem }: Props) {
   const plan = PLANS[level];
   const chapter = plan.chapters.find((c) => c.number === chapterNo) ?? plan.chapters[0];
   const d = done[level];
@@ -164,7 +167,7 @@ export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAl
             </div>
           </div>
 
-          <BoxView key={box.id} box={box} index={idx} total={chapter.boxes.length} complete={complete} done={d} onToggle={(id) => onToggle(box, id)} />
+          <BoxView key={box.id} box={box} index={idx} total={chapter.boxes.length} complete={complete} done={d} onToggle={(id) => onToggle(box, id)} available={available} solved={solved} onOpenProblem={onOpenProblem} />
         </div>
 
         <div className="track">

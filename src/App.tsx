@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { PinRequired, fetchProgress, saveChapter, saveTask, setPin } from './api';
+import { PinRequired, fetchCoverage, fetchProgress, saveChapter, saveTask, setPin } from './api';
 import { LEVELS, PLANS, isBoxDone } from './plans';
 import { LevelPicker } from './components/LevelPicker';
 import { Checklist } from './components/Checklist';
 import { CompleteDialog } from './components/CompleteDialog';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { ProblemDialog } from './components/ProblemDialog';
 import type { Box } from './types';
 
 interface Route {
@@ -26,10 +27,31 @@ export default function App() {
   const [needPin, setNeedPin] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [dialog, setDialog] = useState<{ box?: Box; emailed: boolean; levelNo: number; chapterNo: number; whole?: boolean } | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ levelNo: number; chapterNo: number; done: boolean } | null>(null);
 
+  // Which problems of the open chapter have their question in the app (and which are solved).
+  const [coverage, setCoverage] = useState<Record<string, { available: Set<number>; solved: Set<number> }>>({});
+  const [problem, setProblem] = useState<{ level: number; chapter: number; n: number; list: number[] } | null>(null);
+  const covKey = route.level ? `${route.level}-${route.chapter}` : null;
+  const loadCoverage = useCallback(async (level: number, chapter: number) => {
+    try {
+      const c = await fetchCoverage(level, chapter);
+      setCoverage((prev) => ({ ...prev, [`${level}-${chapter}`]: { available: new Set(c.available), solved: new Set(c.solved) } }));
+    } catch {
+      /* problems are an extra; the checklist works without them */
+    }
+  }, []);
   useEffect(() => {
-    const onHash = () => setRoute(parseHash());
+    if (route.level && loaded && !needPin) void loadCoverage(route.level, route.chapter);
+  }, [route.level, route.chapter, loaded, needPin, loadCoverage]);
+  const cov = (covKey && coverage[covKey]) || { available: new Set<number>(), solved: new Set<number>() };
+
+  useEffect(() => {
+    const onHash = () => {
+      setRoute(parseHash());
+      setProblem(null); // leaving the box (e.g. browser back) closes an open problem
+    };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -80,7 +102,7 @@ export default function App() {
   };
 
   // Whole-chapter action (after the confirmation dialog): every task in the chapter on or off at once.
-  const applyChapter = async (levelNo: number, chapterNo: number, on: boolean) => {
+  const applyChapter = async (levelNo: number, chapterNo: number, on: boolean, passcode: string) => {
     const chapter = PLANS[levelNo].chapters.find((c) => c.number === chapterNo)!;
     const ids = chapter.boxes.flatMap((b) => b.tasks.map((t) => t.id));
     const before = done[levelNo];
@@ -90,13 +112,18 @@ export default function App() {
       return { ...d, [levelNo]: s };
     });
     try {
-      const res = await saveChapter(levelNo, chapterNo, on);
+      const res = await saveChapter(levelNo, chapterNo, on, passcode);
+      setConfirm(null);
       setDone((d) => ({ ...d, [levelNo]: new Set(res.done) }));
       if (on) setDialog({ emailed: false, levelNo, chapterNo, whole: true });
     } catch (e) {
       setDone((d) => ({ ...d, [levelNo]: before })); // roll back
       if (e instanceof PinRequired) setNeedPin(true);
-      else setError((e as Error).message);
+      else if ((e as Error).message === 'wrong_passcode') setConfirmError('Wrong passcode. Ask a grown-up!');
+      else {
+        setConfirm(null);
+        setError((e as Error).message);
+      }
     }
   };
 
@@ -133,6 +160,9 @@ export default function App() {
           onToggle={(box, id) => toggle(route.level!, box, id)}
           onChapterAll={(chapterNo, on) => setConfirm({ levelNo: route.level!, chapterNo, done: on })}
           onNavigate={go}
+          available={cov.available}
+          solved={cov.solved}
+          onOpenProblem={(n, list) => setProblem({ level: route.level!, chapter: route.chapter, n, list: list.filter((x) => cov.available.has(x)) })}
         />
       ) : (
         <LevelPicker done={done} onPick={(l) => go(l, 1)} />
@@ -150,15 +180,27 @@ export default function App() {
             }
             confirmLabel={confirm.done ? 'Yes, complete it all' : 'Yes, clear it all'}
             danger={!confirm.done}
-            onCancel={() => setConfirm(null)}
-            onConfirm={() => {
-              const c = confirm;
-              setConfirm(null);
-              void applyChapter(c.levelNo, c.chapterNo, c.done);
+            passcode
+            error={confirmError}
+            onCancel={() => { setConfirm(null); setConfirmError(null); }}
+            onConfirm={(code) => {
+              setConfirmError(null);
+              void applyChapter(confirm.levelNo, confirm.chapterNo, confirm.done, code);
             }}
           />
         );
       })()}
+      {problem && (
+        <ProblemDialog
+          level={problem.level}
+          chapter={problem.chapter}
+          n={problem.n}
+          list={problem.list}
+          onSolved={() => void loadCoverage(problem.level, problem.chapter)}
+          onOpen={(n) => setProblem({ ...problem, n })}
+          onClose={() => setProblem(null)}
+        />
+      )}
       {dialog && (
         <CompleteDialog
           box={dialog.box}

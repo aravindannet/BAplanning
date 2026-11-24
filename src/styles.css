@@ -212,3 +212,32 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   .banner .xp, .xp-label { display: none; }
   .track { height: 72px; }
 }
+
+/* ---------- practice problems ---------- */
+button.coin.live { cursor: pointer; border-color: var(--blue); box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--blue-nav); transition: transform .15s; }
+button.coin.live:hover { transform: scale(1.12) rotate(-4deg); }
+button.coin.live.solved { background: var(--green); border-color: var(--green-dk); color: #fff; box-shadow: none; }
+.dialog.problem { padding: 28px 40px 28px; width: 720px; max-height: calc(100dvh - 60px); margin-top: 0; overflow: auto; text-align: left; align-items: stretch; }
+.x-close { position: absolute; top: 10px; right: 14px; font-size: 22px; color: var(--muted); width: 40px; height: 40px; }
+.problem-head { display: flex; align-items: center; gap: 14px; }
+.coin.big { width: 52px; height: 52px; font-size: 22px; animation: none; }
+.problem-src { color: var(--muted); font-weight: 700; }
+.problem-prompt { font: 500 24px/1.45 var(--sans); white-space: pre-wrap; color: var(--navy); }
+.problem-img { max-width: 100%; max-height: 38dvh; object-fit: contain; align-self: center; border-radius: 8px; }
+.answer-form { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+.answer-form.shake { animation: shake .45s; }
+.answer-row { display: flex; align-items: center; gap: 12px; }
+.part-label { font: 700 22px var(--slab); color: var(--blue); min-width: 0; white-space: nowrap; }
+.answer-row input { flex: 1; height: 60px; font: 700 28px var(--sans); padding: 0 18px; border: 4px solid var(--blue-border); border-radius: 10px; color: var(--navy); background: #fff; }
+.answer-row.bad input { border-color: var(--red); background: #fdeeee; }
+.problem-msg { font: 700 20px var(--slab); color: var(--brick-dk); }
+.hint { display: flex; gap: 14px; align-items: center; background: var(--yellow); border: 3px solid var(--gold-dk); border-radius: 14px; padding: 12px 16px; animation: bounce-in .4s both; }
+.hint p { font: 500 20px/1.4 var(--sans); }
+.hint-beast { width: 64px; flex: none; }
+.problem-win { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.problem-win h3 { font: 700 40px var(--slab); color: var(--green-dk); margin: 0; }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-12px); } 40% { transform: translateX(12px); } 60% { transform: translateX(-8px); } 80% { transform: translateX(8px); } }
+.check:disabled { opacity: .4; cursor: not-allowed; }
+.mark.locked, .mark:disabled { opacity: .6; cursor: not-allowed; }
+.passcode { width: 100%; height: 56px; text-align: center; font: 700 28px var(--sans); letter-spacing: .3em; border: 4px solid var(--blue-border); border-radius: 10px; }
+.dialog.confirm .problem-msg { text-align: center; }

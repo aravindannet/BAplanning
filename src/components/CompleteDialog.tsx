@@ -14,7 +14,7 @@ interface Props {
 
 const COLORS = ['#F2B73D', '#2955A5', '#D13B3B', '#3F7F2E', '#F06AA8', '#FFFFFF'];
 
-function Confetti() {
+export function Confetti() {
   // Pure-CSS confetti: random but stable per mount.
   const pieces = useMemo(
     () =>
