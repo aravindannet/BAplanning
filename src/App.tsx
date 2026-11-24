@@ -118,7 +118,7 @@ export default function App() {
   return (
     <>
       {error && (
-        <div className="banner" role="alert">
+        <div className="banner-error" role="alert">
           {error} <button onClick={() => setError(null)}>Dismiss</button>
         </div>
       )}
@@ -181,10 +181,10 @@ function PinScreen({ onSubmit }: { onSubmit: (pin: string) => void }) {
   const [v, setV] = useState('');
   return (
     <form className="pin" onSubmit={(e) => { e.preventDefault(); onSubmit(v); }}>
-      <h1>Beast Academy</h1>
+      <h1 className="sign">BEAST ACADEMY</h1>
       <p>Enter the family PIN</p>
       <input type="password" inputMode="numeric" autoFocus value={v} onChange={(e) => setV(e.target.value)} aria-label="PIN" />
-      <button type="submit">Open</button>
+      <button type="submit" className="bn primary">Open</button>
     </form>
   );
 }

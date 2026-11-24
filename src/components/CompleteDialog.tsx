@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { Box } from '../types';
+import { Beast, Star } from './icons';
 
 interface Props {
   box?: Box;
@@ -11,7 +12,7 @@ interface Props {
   onNext: () => void;
 }
 
-const COLORS = ['#f58220', '#2f7de1', '#2e9e6b', '#e8478b', '#f6c90e', '#8a5cd6'];
+const COLORS = ['#F2B73D', '#2955A5', '#D13B3B', '#3F7F2E', '#F06AA8', '#FFFFFF'];
 
 function Confetti() {
   // Pure-CSS confetti: random but stable per mount.
@@ -54,15 +55,15 @@ export function CompleteDialog({ box, chapterNo, chapterTitle, emailed, next, on
     <div className="overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={whole ? 'Chapter complete' : 'Box complete'}>
       <Confetti />
       <div className="dialog" onClick={(e) => e.stopPropagation()}>
-        <div className="party" aria-hidden="true">🎉</div>
+        <Beast className="dlg-beast" />
+        <div className="stars" aria-hidden="true"><Star size={58} /><Star size={76} /><Star size={58} /></div>
         <h2>{whole ? 'Chapter complete!' : 'Box complete!'}</h2>
         <p className="what">{whole ? `Chapter ${chapterNo} · ${chapterTitle}` : `${box?.title} · Chapter ${chapterNo}`}</p>
-        <div className="stars" aria-hidden="true"><span>⭐</span><span>⭐</span><span>⭐</span></div>
         <p className="mail">{emailed ? 'An email has been sent to let Mom/Dad know.' : whole ? 'Every box in this chapter is checked off.' : 'Great job finishing this box!'}</p>
         {next ? (
-          <button className="primary" autoFocus onClick={onNext}>{whole ? `Next chapter: ${next.title}` : `Next box: ${next.title}`} ›</button>
+          <button className="bn primary" autoFocus onClick={onNext}>{whole ? `Next chapter: ${next.title}` : `Next box: ${next.title}`} ›</button>
         ) : (
-          <button className="primary" autoFocus onClick={onClose}>All done here!</button>
+          <button className="bn primary" autoFocus onClick={onClose}>All done here!</button>
         )}
         <button className="link" onClick={onClose}>{whole ? 'Stay here' : 'Stay on this box'}</button>
       </div>

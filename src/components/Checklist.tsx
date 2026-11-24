@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { LEVELS, PLANS, isBoxDone } from '../plans';
 import type { Box } from '../types';
-import { StepGuide } from './icons';
+import { Beast } from './icons';
 import { TaskRow } from './TaskRow';
 
 /**
@@ -25,18 +25,24 @@ function BoxView({ box, index, total, complete, done, onToggle }: { box: Box; in
 
   useLayoutEffect(() => {
     const el = ref.current;
-    if (el && el.scrollHeight > el.clientHeight + 1 && density < 5) setDensity(density + 1);
+    if (!el) return;
+    // task cards clip their own content, so check each card body as well as the box itself
+    const over =
+      el.scrollHeight > el.clientHeight + 1 ||
+      [...el.querySelectorAll<HTMLElement>('.task-body')].some((b) => b.scrollHeight > b.clientHeight + 1);
+    if (over && density < 5) setDensity(density + 1);
   }, [density, epoch]);
 
   return (
-    <section ref={ref} className={`box d${density}${complete ? ' complete' : ' current'}`}>
+    <section ref={ref} className={`box paper d${density}${complete ? ' complete' : ' current'}`}>
       <div className="box-head">
         <span className="box-count">Box {index + 1} of {total}</span>
         <h2>{box.title}</h2>
         {box.enrichment && <span className="tag">Enrichment</span>}
         {box.extra && <span className="tag extra">Extra</span>}
         {complete && <span className="done-flag">✓ Done!</span>}
-        {box.standards.length > 0 && <span className="standards">{box.standards.join(', ')}</span>}      </div>
+        {box.standards.length > 0 && <span className="standards">{box.standards.join(', ')}</span>}
+      </div>
       <div className="tasks" style={{ ['--cols' as string]: box.tasks.length }}>
         {box.tasks.map((t, i) => (
           <TaskRow key={t.id} task={t} index={i} done={done.has(t.id)} onToggle={() => onToggle(t.id)} />
@@ -86,10 +92,16 @@ export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAl
   const prev = idx > 0 ? { c: chapter.number, b: idx } : ci > 0 ? { c: chapters[ci - 1].number, b: chapters[ci - 1].boxes.length } : null;
   const next = idx < chapter.boxes.length - 1 ? { c: chapter.number, b: idx + 2 } : ci < chapters.length - 1 ? { c: chapters[ci + 1].number, b: 1 } : null;
 
+  const pct = (doneCount / chapter.boxes.length) * 100;
+  const allDone = doneCount === chapter.boxes.length;
+
   return (
     <div className="shell">
       <aside className="sidebar">
-        <button className="brand" onClick={() => onNavigate(null)}>Beast Academy</button>
+        <button className="brand" onClick={() => onNavigate(null)} aria-label="Back to levels">
+          <span>Beast</span>
+          <span>Academy</span>
+        </button>
         <div className="switch" role="tablist">
           {LEVELS.map((l) => (
             <button key={l} role="tab" aria-selected={l === level} className={l === level ? 'active' : ''} onClick={() => onNavigate(l, 1)}>
@@ -110,53 +122,56 @@ export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAl
             );
           })}
         </nav>
+        <Beast className="side-beast" />
       </aside>
 
       <main className="main">
-        <header>
-          <div className="eyebrow">CHAPTER {chapter.number}</div>
-          <h1>{chapter.title}</h1>
-          <div className="bar"><div style={{ width: `${(doneCount / chapter.boxes.length) * 100}%` }} /></div>
-          <div className="stats">
-            <span className="badge"><b key={doneCount}>{doneCount}</b> of {chapter.boxes.length} boxes done</span>
-            <button
-              className={`all-btn${doneCount === chapter.boxes.length ? ' undo' : ''}`}
-              onClick={() => onChapterAll(chapter.number, doneCount !== chapter.boxes.length)}
-            >
-              {doneCount === chapter.boxes.length ? '↺ Undo all' : '✓ Complete whole chapter'}
+        <div className="content">
+          <header className="banner">
+            <button className="menu-ic" onClick={() => onNavigate(null)} aria-label="Back to levels">☰</button>
+            <div className="banner-titles">
+              <div className="eyebrow">Level {level} · Chapter {chapter.number}</div>
+              <h1>{chapter.title}</h1>
+            </div>
+            <button className={`all-btn${allDone ? ' undo' : ''}`} onClick={() => onChapterAll(chapter.number, !allDone)}>
+              {allDone ? '↺ Undo all' : '✓ Complete whole chapter'}
             </button>
-            <StepGuide />
-          </div>
-        </header>
+            <span className="xp-label">{doneCount} of {chapter.boxes.length} boxes</span>
+            <div className="xp" role="progressbar" aria-valuemin={0} aria-valuemax={chapter.boxes.length} aria-valuenow={doneCount}>
+              <div className="xp-fill" style={{ width: `${pct}%` }} />
+              <span key={doneCount}>{doneCount} / {chapter.boxes.length}</span>
+            </div>
+          </header>
 
-        <div className="strip" role="tablist" aria-label="Boxes in this chapter">
-          {chapter.boxes.map((b, i) => {
-            const isDone = isBoxDone(b, d);
-            return (
-              <button
-                key={b.id}
-                role="tab"
-                aria-selected={i === idx}
-                aria-label={`Box ${i + 1}: ${b.title}${isDone ? ' (done)' : ''}`}
-                title={b.title}
-                className={`dot${isDone ? ' done' : ''}${i === idx ? ' on' : ''}`}
-                onClick={() => onNavigate(level, chapter.number, i + 1)}
-              >
-                {isDone ? '✓' : i + 1}
-              </button>
-            );
-          })}
+          <div className="strip-row">
+            <div className="strip" role="tablist" aria-label="Boxes in this chapter">
+              {chapter.boxes.map((b, i) => {
+                const isDone = isBoxDone(b, d);
+                return (
+                  <button
+                    key={b.id}
+                    role="tab"
+                    aria-selected={i === idx}
+                    aria-label={`Box ${i + 1}: ${b.title}${isDone ? ' (done)' : ''}`}
+                    title={b.title}
+                    className={`dot${isDone ? ' done' : ''}${i === idx ? ' on' : ''}`}
+                    onClick={() => onNavigate(level, chapter.number, i + 1)}
+                  >
+                    {isDone ? '✓' : i + 1}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <BoxView key={box.id} box={box} index={idx} total={chapter.boxes.length} complete={complete} done={d} onToggle={(id) => onToggle(box, id)} />
         </div>
 
-        <div className="stage">
-          <BoxView key={box.id} box={box} index={idx} total={chapter.boxes.length} complete={complete} done={d} onToggle={(id) => onToggle(box, id)} />
-
-          <div className="pager">
-            <button disabled={!prev} onClick={() => prev && onNavigate(level, prev.c, prev.b)}>‹ Back</button>
-            <button className={complete ? 'go' : ''} disabled={!next} onClick={() => next && onNavigate(level, next.c, next.b)}>
-              Next box ›
-            </button>
-          </div>
+        <div className="track">
+          <button className="bn" disabled={!prev} onClick={() => prev && onNavigate(level, prev.c, prev.b)}>‹ Back</button>
+          <button className={`bn next${complete ? ' go' : ''}`} disabled={!next} onClick={() => next && onNavigate(level, next.c, next.b)}>
+            Next box ›
+          </button>
         </div>
       </main>
     </div>

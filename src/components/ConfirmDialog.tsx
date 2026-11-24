@@ -13,7 +13,7 @@ export function ConfirmDialog({ title, body, confirmLabel, danger, onConfirm, on
       <div className="dialog confirm" onClick={(e) => e.stopPropagation()}>
         <h2>{title}</h2>
         <p className="what">{body}</p>
-        <button className={`primary${danger ? ' danger' : ''}`} autoFocus onClick={onConfirm}>{confirmLabel}</button>
+        <button className={`bn primary${danger ? ' danger' : ''}`} autoFocus onClick={onConfirm}>{confirmLabel}</button>
         <button className="link" onClick={onCancel}>Cancel</button>
       </div>
     </div>

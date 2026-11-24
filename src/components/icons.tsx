@@ -1,18 +1,18 @@
 import type { TaskType } from '../types';
 
-/** Sheet-with-folded-corner icon showing one page number (matches the approved design). */
+/** Sheet-with-folded-corner icon showing one page number. */
 export function PageIcon({ n, kind, delay = 0 }: { n: number; kind: TaskType; delay?: number }) {
-  const w = n > 99 ? 46 : 38;
-  const h = 46;
+  const w = n > 99 ? 52 : 46;
+  const h = 58;
   return (
     <span className={`page-icon ${kind}`} role="img" aria-label={`page ${n}`} style={{ animationDelay: `${delay}ms` }}>
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
         <path
           className="sheet"
-          d={`M1 6 Q1 1 6 1 L${w - 14} 1 L${w - 1} 14 L${w - 1} ${h - 6} Q${w - 1} ${h - 1} ${w - 6} ${h - 1} L6 ${h - 1} Q1 ${h - 1} 1 ${h - 6} Z`}
+          d={`M1.5 8 Q1.5 1.5 8 1.5 L${w - 17} 1.5 L${w - 1.5} 17 L${w - 1.5} ${h - 8} Q${w - 1.5} ${h - 1.5} ${w - 8} ${h - 1.5} L8 ${h - 1.5} Q1.5 ${h - 1.5} 1.5 ${h - 8} Z`}
         />
-        <path className="fold" d={`M${w - 14} 1 L${w - 14} 9 Q${w - 14} 14 ${w - 9} 14 L${w - 1} 14 Z`} />
-        <text x={w / 2} y={h - 10} textAnchor="middle">
+        <path className="fold" d={`M${w - 17} 1.5 L${w - 17} 11 Q${w - 17} 17 ${w - 11} 17 L${w - 1.5} 17 Z`} />
+        <text x={w / 2} y={h - 12} textAnchor="middle">
           {n}
         </text>
       </svg>
@@ -20,23 +20,43 @@ export function PageIcon({ n, kind, delay = 0 }: { n: number; kind: TaskType; de
   );
 }
 
-/** Round numbered badge for one problem; dashed outline = optional. */
+/** Gold coin for one problem; a dashed pale coin means optional. */
 export function ProblemBadge({ n, optional, delay = 0 }: { n: number; optional: boolean; delay?: number }) {
   return (
-    <span className={`problem${optional ? ' optional' : ''}`} aria-label={`problem ${n}${optional ? ' (optional)' : ''}`} style={{ animationDelay: `${delay}ms` }}>
+    <span className={`coin${optional ? ' optional' : ''}`} aria-label={`problem ${n}${optional ? ' (optional)' : ''}`} style={{ animationDelay: `${delay}ms` }}>
       {n}
     </span>
   );
 }
 
-export function StepGuide() {
+/** The friendly pink beast (an original character, not Beast Academy artwork). */
+export function Beast({ className = '' }: { className?: string }) {
+  const ink = '#1E2A3A';
   return (
-    <div className="steps" aria-label="Each box goes Guide, then Online, then Practice">
-      <span className="step guide"><b>1</b>Guide</span>
-      <i>›</i>
-      <span className="step online"><b>2</b>Online</span>
-      <i>›</i>
-      <span className="step practice"><b>3</b>Practice</span>
-    </div>
+    <svg className={`beast ${className}`} viewBox="0 -44 120 176" aria-hidden="true">
+      <path d="M30 26 Q34 2 46 -14" fill="none" stroke={ink} strokeWidth="4" strokeLinecap="round" />
+      <path d="M94 26 Q90 2 78 -14" fill="none" stroke={ink} strokeWidth="4" strokeLinecap="round" />
+      <circle cx="23" cy="-19" r="11" fill="#F7C948" stroke={ink} strokeWidth="3" />
+      <circle cx="97" cy="-19" r="11" fill="#F7C948" stroke={ink} strokeWidth="3" />
+      <ellipse cx="60" cy="74" rx="52" ry="54" fill="#F06AA8" stroke={ink} strokeWidth="4" />
+      <ellipse cx="60" cy="96" rx="32" ry="26" fill="#FBD3E6" stroke={ink} strokeWidth="3" />
+      <ellipse cx="40" cy="57" rx="16" ry="19" fill="#fff" stroke={ink} strokeWidth="3" />
+      <ellipse cx="80" cy="57" rx="16" ry="19" fill="#fff" stroke={ink} strokeWidth="3" />
+      <ellipse cx="41" cy="61" rx="7" ry="9" fill={ink} />
+      <ellipse cx="79" cy="61" rx="7" ry="9" fill={ink} />
+      <circle cx="40.5" cy="58" r="2.5" fill="#fff" />
+      <circle cx="78.5" cy="58" r="2.5" fill="#fff" />
+      <path d="M46 86 Q60 102 74 86" fill="none" stroke={ink} strokeWidth="4" strokeLinecap="round" />
+      <ellipse cx="24" cy="83" rx="8" ry="4.5" fill="#FF8FB8" />
+      <ellipse cx="96" cy="83" rx="8" ry="4.5" fill="#FF8FB8" />
+    </svg>
+  );
+}
+
+export function Star({ size = 56 }: { size?: number }) {
+  return (
+    <svg className="star" width={size} height={size} viewBox="0 0 50 50" aria-hidden="true">
+      <path d="M25 2 L31 19 L48 20 L35 31 L39 48 L25 38 L11 48 L15 31 L2 20 L19 19 Z" fill="#F2B73D" stroke="#B8801A" strokeWidth="3" strokeLinejoin="round" />
+    </svg>
   );
 }
