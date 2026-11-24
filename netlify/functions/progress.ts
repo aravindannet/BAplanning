@@ -26,7 +26,7 @@ export default async (req: Request): Promise<Response> => {
   }
 
   if (req.method === 'POST') {
-    let body: { level?: unknown; taskId?: unknown; done?: unknown };
+    let body: { level?: unknown; taskId?: unknown; chapter?: unknown; done?: unknown };
     try {
       body = await req.json();
     } catch {
@@ -37,6 +37,26 @@ export default async (req: Request): Promise<Response> => {
     const done = body.done === true;
     const plan = getPlan(level);
     if (!plan) return json({ error: 'unknown level' }, 400);
+
+    // Whole-chapter action: mark every task in a chapter done (or clear them all).
+    if (body.chapter !== undefined) {
+      const chapter = plan.chapters.find((c) => c.number === Number(body.chapter));
+      if (!chapter) return json({ error: 'unknown chapter' }, 400);
+      const taskIds = chapter.boxes.flatMap((b) => b.tasks.map((t) => t.id));
+      const boxIds = chapter.boxes.map((b) => b.id);
+      const now = new Date().toISOString();
+      // No per-box emails for a bulk action. Completing marks the boxes as already announced so a
+      // later tick/untick doesn't email for them; clearing releases that, so redoing a box in the
+      // normal way notifies again.
+      const updated = await col.findOneAndUpdate(
+        { _id: `L${level}` },
+        done
+          ? { $addToSet: { done: { $each: taskIds }, notified: { $each: boxIds } }, $set: { updatedAt: now } }
+          : { $pull: { done: { $in: taskIds }, notified: { $in: boxIds } }, $set: { updatedAt: now } },
+        { upsert: true, returnDocument: 'after' },
+      );
+      return json({ done: updated?.done ?? [], completedBox: null, emailed: false, chapterTasks: taskIds.length });
+    }
     const found = findTask(plan, taskId);
     if (!found) return json({ error: 'unknown task' }, 400);
 

@@ -52,10 +52,11 @@ interface Props {
   boxNo: number | null;
   done: Record<number, Set<string>>;
   onToggle: (box: Box, taskId: string) => void;
+  onChapterAll: (chapterNo: number, done: boolean) => void;
   onNavigate: (level: number | null, chapter?: number, box?: number) => void;
 }
 
-export function Checklist({ level, chapterNo, boxNo, done, onToggle, onNavigate }: Props) {
+export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAll, onNavigate }: Props) {
   const plan = PLANS[level];
   const chapter = plan.chapters.find((c) => c.number === chapterNo) ?? plan.chapters[0];
   const d = done[level];
@@ -118,6 +119,12 @@ export function Checklist({ level, chapterNo, boxNo, done, onToggle, onNavigate 
           <div className="bar"><div style={{ width: `${(doneCount / chapter.boxes.length) * 100}%` }} /></div>
           <div className="stats">
             <span className="badge"><b key={doneCount}>{doneCount}</b> of {chapter.boxes.length} boxes done</span>
+            <button
+              className={`all-btn${doneCount === chapter.boxes.length ? ' undo' : ''}`}
+              onClick={() => onChapterAll(chapter.number, doneCount !== chapter.boxes.length)}
+            >
+              {doneCount === chapter.boxes.length ? '↺ Undo all' : '✓ Complete whole chapter'}
+            </button>
             <StepGuide />
           </div>
         </header>

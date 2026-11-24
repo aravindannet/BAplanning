@@ -229,3 +229,10 @@ body { overflow: hidden; }
 
 .tag.extra { background: #dff3f5; color: #11707c; }
 .box:has(.tasks[style*='--cols: 1']) .task { max-width: 560px; }
+
+.all-btn { padding: 6px 14px; border-radius: 12px; border: 2px solid var(--online); color: var(--online); font-weight: 700; font-size: 14px; background: var(--card); transition: transform .15s, background .2s; }
+.all-btn:hover { background: var(--done-bg); transform: translateY(-1px); }
+.all-btn.undo { border-color: var(--line); color: var(--muted); }
+.stats > .all-btn { margin-right: auto; margin-left: 12px; }
+.dialog.confirm h2 { color: var(--navy); font-size: 28px; }
+.primary.danger { background: #d64545; }

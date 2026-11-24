@@ -31,3 +31,6 @@ export const saveTask = (level: number, taskId: string, done: boolean) =>
     method: 'POST',
     body: JSON.stringify({ level, taskId, done }),
   });
+
+export const saveChapter = (level: number, chapter: number, done: boolean) =>
+  call<{ done: string[] }>('/api/progress', { method: 'POST', body: JSON.stringify({ level, chapter, done }) });

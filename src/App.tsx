@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { PinRequired, fetchProgress, saveTask, setPin } from './api';
+import { PinRequired, fetchProgress, saveChapter, saveTask, setPin } from './api';
 import { LEVELS, PLANS, isBoxDone } from './plans';
 import { LevelPicker } from './components/LevelPicker';
 import { Checklist } from './components/Checklist';
 import { CompleteDialog } from './components/CompleteDialog';
+import { ConfirmDialog } from './components/ConfirmDialog';
 import type { Box } from './types';
 
 interface Route {
@@ -24,7 +25,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [needPin, setNeedPin] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [dialog, setDialog] = useState<{ box: Box; emailed: boolean; levelNo: number; chapterNo: number } | null>(null);
+  const [dialog, setDialog] = useState<{ box?: Box; emailed: boolean; levelNo: number; chapterNo: number; whole?: boolean } | null>(null);
+  const [confirm, setConfirm] = useState<{ levelNo: number; chapterNo: number; done: boolean } | null>(null);
 
   useEffect(() => {
     const onHash = () => setRoute(parseHash());
@@ -77,11 +79,35 @@ export default function App() {
     }
   };
 
+  // Whole-chapter action (after the confirmation dialog): every task in the chapter on or off at once.
+  const applyChapter = async (levelNo: number, chapterNo: number, on: boolean) => {
+    const chapter = PLANS[levelNo].chapters.find((c) => c.number === chapterNo)!;
+    const ids = chapter.boxes.flatMap((b) => b.tasks.map((t) => t.id));
+    const before = done[levelNo];
+    setDone((d) => {
+      const s = new Set(d[levelNo]);
+      ids.forEach((id) => (on ? s.add(id) : s.delete(id)));
+      return { ...d, [levelNo]: s };
+    });
+    try {
+      const res = await saveChapter(levelNo, chapterNo, on);
+      setDone((d) => ({ ...d, [levelNo]: new Set(res.done) }));
+      if (on) setDialog({ emailed: false, levelNo, chapterNo, whole: true });
+    } catch (e) {
+      setDone((d) => ({ ...d, [levelNo]: before })); // roll back
+      if (e instanceof PinRequired) setNeedPin(true);
+      else setError((e as Error).message);
+    }
+  };
+
   const nextBox = useMemo(() => {
     if (!dialog) return null;
     const plan = PLANS[dialog.levelNo];
     const all = plan.chapters.flatMap((c) => c.boxes.map((b) => ({ c, b })));
-    const i = all.findIndex((x) => x.b.id === dialog.box.id);
+    // after a whole-chapter completion, "next" means the first unfinished box in a LATER chapter
+    const i = dialog.whole
+      ? all.map((x) => x.c.number).lastIndexOf(dialog.chapterNo)
+      : all.findIndex((x) => x.b.id === dialog.box!.id);
     const after = all.slice(i + 1).find((x) => !isBoxDone(x.b, done[dialog.levelNo]));
     if (!after) return null;
     return { ...after, index: after.c.boxes.indexOf(after.b) + 1 };
@@ -105,17 +131,41 @@ export default function App() {
           boxNo={route.box}
           done={done}
           onToggle={(box, id) => toggle(route.level!, box, id)}
+          onChapterAll={(chapterNo, on) => setConfirm({ levelNo: route.level!, chapterNo, done: on })}
           onNavigate={go}
         />
       ) : (
         <LevelPicker done={done} onPick={(l) => go(l, 1)} />
       )}
+      {confirm && (() => {
+        const ch = PLANS[confirm.levelNo].chapters.find((c) => c.number === confirm.chapterNo)!;
+        const tasks = ch.boxes.reduce((n, b) => n + b.tasks.length, 0);
+        return (
+          <ConfirmDialog
+            title={confirm.done ? 'Complete the whole chapter?' : 'Undo the whole chapter?'}
+            body={
+              confirm.done
+                ? `This checks off all ${tasks} tasks in ${ch.boxes.length} boxes of Chapter ${ch.number}: ${ch.title}.`
+                : `This clears every check mark in Chapter ${ch.number}: ${ch.title}.`
+            }
+            confirmLabel={confirm.done ? 'Yes, complete it all' : 'Yes, clear it all'}
+            danger={!confirm.done}
+            onCancel={() => setConfirm(null)}
+            onConfirm={() => {
+              const c = confirm;
+              setConfirm(null);
+              void applyChapter(c.levelNo, c.chapterNo, c.done);
+            }}
+          />
+        );
+      })()}
       {dialog && (
         <CompleteDialog
           box={dialog.box}
           chapterNo={dialog.chapterNo}
+          chapterTitle={dialog.whole ? PLANS[dialog.levelNo].chapters.find((c) => c.number === dialog.chapterNo)!.title : undefined}
           emailed={dialog.emailed}
-          next={nextBox ? { title: nextBox.b.title, chapter: nextBox.c.number } : null}
+          next={nextBox ? { title: dialog.whole ? nextBox.c.title : nextBox.b.title, chapter: nextBox.c.number } : null}
           onClose={() => setDialog(null)}
           onNext={() => {
             if (nextBox) go(dialog.levelNo, nextBox.c.number, nextBox.index);

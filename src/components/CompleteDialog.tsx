@@ -2,8 +2,9 @@ import { useMemo } from 'react';
 import type { Box } from '../types';
 
 interface Props {
-  box: Box;
+  box?: Box;
   chapterNo: number;
+  chapterTitle?: string; // set for a whole-chapter celebration
   emailed: boolean;
   next: { title: string; chapter: number } | null;
   onClose: () => void;
@@ -47,22 +48,23 @@ function Confetti() {
   );
 }
 
-export function CompleteDialog({ box, chapterNo, emailed, next, onClose, onNext }: Props) {
+export function CompleteDialog({ box, chapterNo, chapterTitle, emailed, next, onClose, onNext }: Props) {
+  const whole = chapterTitle !== undefined;
   return (
-    <div className="overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Box complete">
+    <div className="overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={whole ? 'Chapter complete' : 'Box complete'}>
       <Confetti />
       <div className="dialog" onClick={(e) => e.stopPropagation()}>
         <div className="party" aria-hidden="true">🎉</div>
-        <h2>Box complete!</h2>
-        <p className="what">{box.title} · Chapter {chapterNo}</p>
+        <h2>{whole ? 'Chapter complete!' : 'Box complete!'}</h2>
+        <p className="what">{whole ? `Chapter ${chapterNo} · ${chapterTitle}` : `${box?.title} · Chapter ${chapterNo}`}</p>
         <div className="stars" aria-hidden="true"><span>⭐</span><span>⭐</span><span>⭐</span></div>
-        <p className="mail">{emailed ? 'An email has been sent to let Mom/Dad know.' : 'Great job finishing this box!'}</p>
+        <p className="mail">{emailed ? 'An email has been sent to let Mom/Dad know.' : whole ? 'Every box in this chapter is checked off.' : 'Great job finishing this box!'}</p>
         {next ? (
-          <button className="primary" autoFocus onClick={onNext}>Next box: {next.title} ›</button>
+          <button className="primary" autoFocus onClick={onNext}>{whole ? `Next chapter: ${next.title}` : `Next box: ${next.title}`} ›</button>
         ) : (
           <button className="primary" autoFocus onClick={onClose}>All done here!</button>
         )}
-        <button className="link" onClick={onClose}>Stay on this box</button>
+        <button className="link" onClick={onClose}>{whole ? 'Stay here' : 'Stay on this box'}</button>
       </div>
     </div>
   );
