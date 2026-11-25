@@ -531,3 +531,8 @@ textarea.explain { flex: 1; font: 500 20px/1.4 var(--sans); padding: 12px 14px; 
 /* the two banner buttons are exactly the same height */
 .banner .music-btn, .banner .all-btn { height: 40px; box-sizing: border-box; }
 .banner .all-btn { display: inline-flex; align-items: center; }
+
+/* parent passcode: the number pad as a phone-style keypad (1-9, then 0 and erase) */
+.dialog.confirm .numpad { display: grid; grid-template-columns: repeat(3, 64px); gap: 10px; justify-content: center; margin: 4px 0 2px; }
+.dialog.confirm .numkey { width: 64px; height: 56px; }
+.dialog.confirm .numkey:nth-child(10) { grid-column: 2; }

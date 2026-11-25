@@ -23,6 +23,32 @@ function parseHash(): Route {
   return { level: level && PLANS[level] ? level : null, chapter: m?.[2] ? Number(m[2]) : 1, box: m?.[3] ? Number(m[3]) : null };
 }
 
+// ---------- where the kid was ----------
+// An iPad home-screen app always relaunches at its start_url ("/"), which loses the #route. So the current
+// place (chapter, box, and any open problem window) is kept on the device and restored when the app starts at
+// the plain address. Going back to the level picker saves "#/", so it starts there next time.
+type OpenProblem = { level: number; chapter: number; n: number; list: { n: number; optional: boolean }[] };
+const WHERE = 'ba.where';
+const restored: { problem: OpenProblem | null } = { problem: null };
+(() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(WHERE) ?? 'null') as { hash?: string; problem?: OpenProblem | null } | null;
+    if (location.hash.replace(/^#\/?/, '') === '' && saved?.hash?.startsWith('#/L')) {
+      history.replaceState(null, '', saved.hash);
+      restored.problem = saved.problem ?? null;
+    }
+  } catch {
+    /* no storage: start at the levels */
+  }
+})();
+const saveWhere = (problem: OpenProblem | null) => {
+  try {
+    localStorage.setItem(WHERE, JSON.stringify({ hash: location.hash || '#/', problem }));
+  } catch {
+    /* private mode */
+  }
+};
+
 /** 14,15,16,20 -> "14–16, 20" */
 const pageRange = (pages: number[]) =>
   pages
@@ -50,7 +76,9 @@ export default function App() {
 
   // Which problems of the open chapter have their question in the app (and which are solved).
   const [coverage, setCoverage] = useState<Record<string, { available: Set<number>; solved: Set<number>; learn: Set<number>; learned: Set<string>; stars: Record<string, number>; lock: Record<string, { reason: 'learn' } | { reason: 'previous'; need: number } | { reason: 'box'; need: number }> }>>({});
-  const [problem, setProblem] = useState<{ level: number; chapter: number; n: number; list: { n: number; optional: boolean }[] } | null>(null);
+  const [problem, setProblem] = useState<OpenProblem | null>(restored.problem);
+  // keep the current place on this device (see "where the kid was" above)
+  useEffect(() => saveWhere(problem), [route, problem]);
   const covKey = route.level ? `${route.level}-${route.chapter}` : null;
   const loadCoverage = useCallback(async (level: number, chapter: number) => {
     try {

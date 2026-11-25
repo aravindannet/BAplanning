@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useWindowSound } from '../sound';
+import { NumberPad } from './NumberPad';
 
 interface Props {
   title: string;
@@ -32,7 +33,8 @@ export function ConfirmDialog({ title, body, confirmLabel, danger, passcode, err
             <input
               className="passcode"
               type="password"
-              inputMode="numeric"
+              // the on-screen keys below are used instead of the iPad keyboard (a real keyboard still types)
+              inputMode="none"
               autoComplete="off"
               autoFocus
               placeholder="Parent passcode"
@@ -40,6 +42,7 @@ export function ConfirmDialog({ title, body, confirmLabel, danger, passcode, err
               value={code}
               onChange={(e) => setCode(e.target.value)}
             />
+            <NumberPad onKey={(k) => setCode((c) => (k === '⌫' ? c.slice(0, -1) : (c + k).slice(0, 12)))} />
             {error && <div className="problem-msg" role="alert">{error}</div>}
           </>
         )}
