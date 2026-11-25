@@ -94,3 +94,16 @@ export function checkAnswer(input: string, accepted: string[]): boolean {
     return ai.length > 1 && ai.map(canon).sort().join('|') === gi;
   });
 }
+
+// On-screen number pad: the symbol keys a typed answer needs besides the digits (shown in this order).
+export const PAD_SYMBOLS = [',', '×', '^', '÷', '=', '&', '/', '.', '−'] as const;
+/**
+ * Keys for the number pad, or null when the answer has letters (then the iPad keyboard is used).
+ * Based on the main answer only: the kid needs to be able to type that one form.
+ */
+export function padKeys(answer: string): string[] | null {
+  const a = answer.replace(/-/g, '−');
+  if (/[a-z]/i.test(a)) return null;
+  if (![...a].every((ch) => /[\d\s]/.test(ch) || (PAD_SYMBOLS as readonly string[]).includes(ch))) return null;
+  return PAD_SYMBOLS.filter((k) => a.includes(k));
+}

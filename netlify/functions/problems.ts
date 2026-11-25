@@ -1,6 +1,6 @@
 import type { Config } from '@netlify/functions';
 import { withMongo, isMongoConfigured, problemImagesCol, problemsCol, problemStateCol, type HistoryEntry } from './_mongo';
-import { checkAnswer } from './_answer';
+import { checkAnswer, padKeys } from './_answer';
 import { judgeExplanation, makeHint } from './_hint';
 import { checkPuzzle, describePuzzle, type Cells } from './_puzzle';
 import { getPlan, type PlanChapter } from './_plan';
@@ -109,7 +109,8 @@ export default withMongo(async (req: Request): Promise<Response> => {
       prompt: p.prompt,
       images: p.images.question,
       kind: p.kind ?? 'text',
-      parts: p.parts.map((x) => ({ label: x.label, ...(x.choices ? { choices: x.choices } : {}), ...(x.multi ? { multi: true } : {}) })),
+      // typed parts get an on-screen number pad with just the symbol keys the answer uses (null: letters, use the keyboard)
+      parts: p.parts.map((x) => ({ label: x.label, ...(x.choices ? { choices: x.choices } : {}), ...(x.multi ? { multi: true } : {}), ...(!x.choices && (p.kind ?? 'text') !== 'explain' ? { pad: padKeys(x.answer) } : {}) })),
       ...(p.puzzle ? { puzzle: p.puzzle } : {}),
       hasBookHint: Boolean(p.bookHint),
       solved: st?.solved ?? false,
@@ -198,7 +199,12 @@ export default withMongo(async (req: Request): Promise<Response> => {
         hintsLeft = false;
       } else {
         const level = (st?.history?.filter((h) => h.hint && h.hintFrom !== 'book').length ?? 0) + 1; // AI hints already shown + 1
-        hint = (await makeHint(layout ? { ...p, prompt: `${p.prompt}\n${layout}` } : p, wrongText, level)).hint;
+        // what the kid already saw and tried since the last solve, so the new hint builds on it instead of repeating
+        const hist = st?.history ?? [];
+        const since = hist.slice(hist.map((h) => h.kind).lastIndexOf('solved') + 1);
+        const earlierHints = since.filter((h) => h.hint).map((h) => ({ hint: h.hint!, hintFrom: h.hintFrom }));
+        const earlierAnswers = hasCells ? [] : since.filter((h) => h.kind === 'wrong' && h.answers).map((h) => Object.entries(h.answers!).map(([k, v]) => (p.parts.length > 1 ? `${k}: ${v}` : v)).join('; '));
+        hint = (await makeHint(layout ? { ...p, prompt: `${p.prompt}\n${layout}` } : p, wrongText, level, { earlierHints, earlierAnswers })).hint;
         hintFrom = 'ai';
         await states.updateOne({ _id: id }, { $set: { hintDay: today, hintCount: used + 1 } });
       }

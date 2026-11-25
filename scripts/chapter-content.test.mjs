@@ -4,17 +4,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { checkAnswer } from '../netlify/functions/_answer.ts';
+import { checkAnswer, padKeys } from '../netlify/functions/_answer.ts';
+import { applyKey } from '../src/pad.ts';
 import { checkPuzzle, editableCells, validateSolution } from '../netlify/functions/_puzzle.ts';
 
-const CHAPTERS = [['ba4-c6.mjs', 120], ['ba4-c7.mjs', 147]];
+// [file, last problem, problems not loaded]
+const CHAPTERS = [['ba4-c5.mjs', 147, [97, 122, 123]], ['ba4-c6.mjs', 120, []], ['ba4-c7.mjs', 147, []]];
 
-for (const [name, count] of CHAPTERS) {
+for (const [name, count, missing] of CHAPTERS) {
   const file = new URL(`../problem-data/${name}`, import.meta.url);
   const have = fs.existsSync(file);
   const probs = have ? (await import(file.href)).default : [];
   test(`${name}: has all ${count} problems`, { skip: !have }, () => {
-    assert.deepEqual(probs.map((p) => p.n), [...Array(count)].map((_, i) => i + 1));
+    assert.deepEqual(probs.map((p) => p.n), [...Array(count)].map((_, i) => i + 1).filter((n) => !missing.includes(n)));
   });
   for (const p of probs) {
     test(`${name} problem ${p.n}: right answer is right, wrong answer is wrong`, () => {
@@ -56,4 +58,33 @@ for (const [name, count] of CHAPTERS) {
       }
     });
   }
+}
+
+// Every typed answer can be entered on the on-screen number pad using only the keys it is given
+// (answers with letters get the keyboard instead), and what the pad produces is marked right.
+for (const name of ['ba4-c4.mjs', 'ba4-c5.mjs', 'ba4-c6.mjs', 'ba4-c7.mjs']) {
+  const file = new URL(`../problem-data/${name}`, import.meta.url);
+  const have = fs.existsSync(file);
+  test(`${name}: every number answer can be typed on the pad`, { skip: !have }, async () => {
+    const probs = (await import(file.href)).default;
+    let padded = 0;
+    for (const p of probs) {
+      if (p.kind === 'explain') continue;
+      for (const part of p.parts) {
+        if (part.choices) continue;
+        const keys = padKeys(part.answer);
+        if (keys === null) {
+          assert.match(part.answer, /[a-z]/i, `#${p.n}: no pad for "${part.answer}"`);
+          continue;
+        }
+        padded++;
+        const allowed = new Set(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ...keys]);
+        const presses = [...part.answer.replace(/-/g, '−')].filter((ch) => ch.trim());
+        for (const ch of presses) assert.ok(allowed.has(ch), `#${p.n}: "${ch}" has no key`);
+        const typed = presses.reduce((s, k) => applyKey(s.text, s.caret, k), { text: '', caret: 0 }).text;
+        assert.ok(checkAnswer(typed, [part.answer, ...part.accepted]), `#${p.n}: typed "${typed}" should be right`);
+      }
+    }
+    assert.ok(padded > 0);
+  });
 }

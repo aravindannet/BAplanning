@@ -1,7 +1,7 @@
 // Hint generation. The model only ever sees the official Beast Academy solution as its method, so
 // hints follow the book's way of thinking instead of the model's own.
 import { problemImagesCol, type ProblemDoc } from './_mongo';
-import { hintProblem } from './_hintRules';
+import { contextText, hintProblem, type HintContext } from './_hintRules';
 
 const MODEL = 'claude-haiku-5-5';
 
@@ -60,7 +60,7 @@ async function callModel(key: string, system: string, messages: Msg[], maxTokens
 }
 
 /** `level` = which hint this is for the problem (1 = first): later hints get a little more specific, never the step. */
-export async function makeHint(p: ProblemDoc, wrongAnswer: string, level = 1): Promise<{ hint: string; ai: boolean }> {
+export async function makeHint(p: ProblemDoc, wrongAnswer: string, level = 1, ctx: HintContext = {}): Promise<{ hint: string; ai: boolean }> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return { hint: FALLBACK_HINT, ai: false };
   const ask = (messages: Msg[]) => callModel(key, SYSTEM, messages);
@@ -70,18 +70,21 @@ export async function makeHint(p: ProblemDoc, wrongAnswer: string, level = 1): P
       ...(await imageBlocks(p.images.question)),
       { type: 'text', text: `OFFICIAL BEAST ACADEMY SOLUTION:\n${p.solution}` },
       ...(await imageBlocks(p.images.solution)),
+      ...(contextText(ctx) ? [{ type: 'text', text: contextText(ctx) }] : []),
       { type: 'text', text: `The child's latest wrong answer: ${wrongAnswer.slice(0, 700)}\n\n${LEVEL[Math.min(Math.max(level, 1), 3)]}\nWrite the hint now.` },
     ];
+    // numbers the child has already seen (earlier answers and hints) are fine to use again
+    const seen = [wrongAnswer, ...(ctx.earlierAnswers ?? []), ...(ctx.earlierHints ?? []).map((h) => h.hint)].join(' ');
     const messages: Msg[] = [{ role: 'user', content }];
     const first = await ask(messages);
     if (first === null) return { hint: FALLBACK_HINT, ai: false };
-    const why = hintProblem(first, p, wrongAnswer);
+    const why = hintProblem(first, p, seen);
     if (!why) return { hint: first, ai: true };
     // one retry as a fresh question that names the broken rule. (Replying to its own rejected draft made the
     // model answer conversationally, e.g. "You're right, that hint ...", and the child saw that.)
     const note = { type: 'text', text: `Careful: a draft of this hint was thrown away because ${why}. Write only the hint itself, speaking to the child. Do not mention any draft, earlier hint or rule.` };
     const second = await ask([{ role: 'user', content: [...content, note] }]);
-    if (second && !hintProblem(second, p, wrongAnswer)) return { hint: second, ai: true };
+    if (second && !hintProblem(second, p, seen)) return { hint: second, ai: true };
     console.warn('[hint] rules broken twice, using the safe hint:', why);
     return { hint: SAFE_HINT, ai: false };
   } catch (err) {

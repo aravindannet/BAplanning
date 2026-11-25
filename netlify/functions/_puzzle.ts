@@ -19,7 +19,8 @@ export type PuzzleSpec =
   /** Factor Blobs: group every number into connected blobs (2+ squares) whose product is `target`. Cells: "r,c" -> blob id. */
   | { type: 'blobs'; nums: number[][]; target: number }
   /** Pyramid Descent: one touching square per row, top to bottom, whose product is `target`. Cells: "r,c" -> "P". */
-  | { type: 'pyramid'; rows: number[][]; target: number }
+  // Pyramid Descent: the path multiplies to `target`. Division Pyramid (`divisor`): each block on the path is the one above ÷ divisor.
+  | { type: 'pyramid'; rows: number[][]; target?: number; divisor?: number }
   /** Times Table: row 0 holds the column factors, column 0 the row factors; "0,0" is the × corner. */
   | { type: 'timestable'; rows: number; cols: number; givens: Cells }
   /** Sieve of Eratosthenes on from..to: circle ("O") every prime, cross ("X") every other number. Cells keyed by the number. */
@@ -143,7 +144,9 @@ function ruleErrors(spec: PuzzleSpec, cells: Cells): string[] {
       prev = c;
       vals.push(row[c]);
     });
-    if (!errs.length && prod(vals) !== spec.target) errs.push(`the path multiplies to ${prod(vals)}`);
+    if (!errs.length && spec.divisor) {
+      for (let i = 1; i < vals.length; i++) if (vals[i] * spec.divisor !== vals[i - 1]) errs.push(`row ${i + 1}: ${vals[i - 1]} ÷ ${spec.divisor} is not ${vals[i]}`);
+    } else if (!errs.length && prod(vals) !== spec.target) errs.push(`the path multiplies to ${prod(vals)}`);
   } else if (spec.type === 'sieve') {
     for (let n = spec.from; n <= spec.to; n++) {
       const v = norm(cells[String(n)]);
@@ -392,6 +395,7 @@ export function describePuzzle(spec: PuzzleSpec, cells: Cells): string {
   }
   if (spec.type === 'pyramid') {
     const path = spec.rows.map((row, r) => row.find((_, c) => norm(cells[key(r, c)]) === 'P')).filter((x) => x != null);
+    if (spec.divisor) return `Division Pyramid: start at the top block, divide by ${spec.divisor}, and move to the touching block below that holds the quotient, down to the bottom row. Rows from the top:\n${spec.rows.map((row) => row.join(' ')).join('\n')}\nThe child's path: ${path.join(' → ') || 'none yet'}`;
     return `Pyramid Descent, target ${spec.target}. Rows from the top:\n${spec.rows.map((row) => row.join(' ')).join('\n')}\nThe child's path: ${path.join(' → ') || 'none yet'}`;
   }
   if (spec.type === 'timestable') {

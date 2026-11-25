@@ -356,6 +356,9 @@ button.coin.live:hover { transform: scale(1.1) rotate(-4deg); }
 .numkey:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--navy); }
 .numkey:disabled { opacity: .4; }
 .numkey.erase { background: #f1ece0; }
+.numkey.sym { background: #e8f0fc; color: var(--blue); }
+/* multi-part number answers: the box the pad is typing into */
+.answer-row input.pad-active { border-color: var(--gold-dk); box-shadow: 0 0 0 3px var(--yellow); }
 .pz-hive svg { max-width: 100%; height: auto; }
 .hex polygon { fill: #fffdf6; stroke: var(--navy); stroke-width: 3; cursor: pointer; }
 .hex.given polygon { fill: #f1ece0; cursor: default; }
@@ -507,3 +510,15 @@ textarea.explain { flex: 1; font: 500 20px/1.4 var(--sans); padding: 12px 14px; 
 .dialog.problem.settled { animation: none; }
 .dialog.problem.settled.flip-out { animation: card-out .19s ease-in both; }
 .dialog.problem.settled.flip-in { animation: card-in .19s ease-out both; }
+
+/* ---------- lives in the problem header: 2 hearts (wrong answers) and 3 bulbs (hints) ---------- */
+.lives { display: inline-flex; align-items: center; gap: calc(9px * var(--ps, 1)); }
+.lives-gap { width: calc(10px * var(--ps, 1)); }
+.life { display: inline-flex; }
+.life svg { width: calc(30px * var(--ps, 1)); height: calc(30px * var(--ps, 1)); }
+.life.just .heart.broken { animation: heart-break .9s ease-out both; }
+.life.just .bulb.lit { animation: bulb-on .9s ease-out both; }
+@keyframes heart-break { 0% { transform: scale(1.25); } 15% { transform: translateX(-3px) rotate(-8deg); } 30% { transform: translateX(3px) rotate(8deg); } 45% { transform: translateX(-2px); } 60%, 100% { transform: none; } }
+@keyframes bulb-on { 0% { transform: scale(.6); filter: brightness(.6); } 50% { transform: scale(1.3); filter: brightness(1.25) drop-shadow(0 0 8px #ffd54a); } 100% { transform: none; filter: drop-shadow(0 0 4px #ffd54a); } }
+.bulb.lit { filter: drop-shadow(0 0 3px rgba(255, 213, 74, .8)); }
+@media (prefers-reduced-motion: reduce) { .life.just svg { animation: none !important; } }

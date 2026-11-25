@@ -9,6 +9,7 @@ import { ProblemDialog } from './components/ProblemDialog';
 import { LearnDialog } from './components/LearnDialog';
 import { Tooltip } from './components/Tooltip';
 import { needsParent, type Box, type Task } from './types';
+import { play, tapSound, unlockAudio } from './sound';
 
 interface Route {
   level: number | null;
@@ -75,6 +76,24 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
+  // Every tap: unlock audio (iPad needs a gesture; this also starts the music), then click or key-tap sound.
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      unlockAudio();
+      const s = tapSound(e.target as Element);
+      if (s) play(s);
+    };
+    const onUnlock = () => unlockAudio(); // older iOS only unlocks on touchend / click
+    document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('touchend', onUnlock, true);
+    document.addEventListener('click', onUnlock, true);
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('touchend', onUnlock, true);
+      document.removeEventListener('click', onUnlock, true);
+    };
+  }, []);
+
   const load = useCallback(async () => {
     try {
       const results = await Promise.all(LEVELS.map((l) => fetchProgress(l)));
@@ -115,6 +134,7 @@ export default function App() {
     try {
       const res = await saveTask(level, taskId, next);
       setDone((d) => ({ ...d, [level]: new Set(res.done) }));
+      if (res.completedBox !== box.id) play(next ? 'done' : 'undo'); // a finished box gets its fanfare instead
       if (res.completedBox === box.id) {
         const chapterNo = PLANS[level].chapters.find((c) => c.boxes.some((b) => b.id === box.id))!.number;
         setDialog({ box, emailed: res.emailed, levelNo: level, chapterNo });
@@ -135,13 +155,16 @@ export default function App() {
       const res = await saveTask(level, task.id, on, code);
       setParentCheck(null);
       setDone((d) => ({ ...d, [level]: new Set(res.done) }));
+      if (res.completedBox !== box.id) play(on ? 'done' : 'undo');
       if (res.completedBox === box.id) {
         const chapterNo = PLANS[level].chapters.find((c) => c.boxes.some((b) => b.id === box.id))!.number;
         setDialog({ box, emailed: res.emailed, levelNo: level, chapterNo });
       }
     } catch (e) {
-      if ((e as Error).message === 'wrong_passcode') setConfirmError('Wrong passcode. Ask a grown-up!');
-      else {
+      if ((e as Error).message === 'wrong_passcode') {
+        play('wrong');
+        setConfirmError('Wrong passcode. Ask a grown-up!');
+      } else {
         setParentCheck(null);
         if (e instanceof PinRequired) setNeedPin(true);
         else setError((e as Error).message);
@@ -166,10 +189,14 @@ export default function App() {
       setConfirm(null);
       setDone((d) => ({ ...d, [levelNo]: new Set(res.done) }));
       if (on) setDialog({ emailed: false, levelNo, chapterNo, whole: true });
+      else play('undo');
     } catch (e) {
       setDone((d) => ({ ...d, [levelNo]: before })); // roll back
       if (e instanceof PinRequired) setNeedPin(true);
-      else if ((e as Error).message === 'wrong_passcode') setConfirmError('Wrong passcode. Ask a grown-up!');
+      else if ((e as Error).message === 'wrong_passcode') {
+        play('wrong');
+        setConfirmError('Wrong passcode. Ask a grown-up!');
+      }
       else {
         setConfirm(null);
         setError((e as Error).message);

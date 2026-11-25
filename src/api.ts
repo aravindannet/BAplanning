@@ -52,7 +52,7 @@ export interface ProblemView {
   prompt: string;
   images: string[];
   kind?: 'text' | 'puzzle' | 'explain';
-  parts: { label: string; choices?: string[]; multi?: boolean }[];
+  parts: { label: string; choices?: string[]; multi?: boolean; pad?: string[] | null }[]; // pad: number-pad symbol keys (null = use the keyboard)
   puzzle?: PuzzleSpec;
   hasBookHint?: boolean;
   solved: boolean;

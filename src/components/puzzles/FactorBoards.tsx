@@ -1,3 +1,4 @@
+import { NumberPad } from '../NumberPad';
 import { useState } from 'react';
 import { key, type Cells, type PuzzleSpec } from '../../../netlify/functions/_puzzle';
 
@@ -70,7 +71,7 @@ export function PyramidBoard({ spec, cells, bad, readOnly, onChange }: P<'pyrami
   };
   return (
     <div className="pz pz-pyramid">
-      <div className="pz-target">Product: <b>{spec.target}</b></div>
+      {spec.divisor ? <div className="pz-target">Divide by <b>{spec.divisor}</b></div> : <div className="pz-target">Product: <b>{spec.target}</b></div>}
       <div className="pyr">
         {spec.rows.map((row, r) => (
           <div className="pyr-row" key={r}>
@@ -78,14 +79,14 @@ export function PyramidBoard({ spec, cells, bad, readOnly, onChange }: P<'pyrami
               const k = key(r, c);
               return (
                 <button key={c} type="button" className={`pz-cell pyr-cell${cells[k] === 'P' ? ' on' : ''}${bad.has(k) ? ' bad' : ''}`} disabled={readOnly} onClick={() => tap(r, c)} aria-label={`row ${r + 1}: ${v}${cells[k] === 'P' ? ', on the path' : ''}`}>
-                  <span className="v">{v}</span>
+                  <span className="v">{v.toLocaleString('en-US')}</span>
                 </button>
               );
             })}
           </div>
         ))}
       </div>
-      {!readOnly && <p className="pz-help">Tap one square in each row, from the top down. Each square must touch the one above it.</p>}
+      {!readOnly && <p className="pz-help">{spec.divisor ? `Tap the top block, then a touching block below that holds the quotient (÷${spec.divisor}), all the way to the bottom.` : 'Tap one square in each row, from the top down. Each square must touch the one above it.'}</p>}
     </div>
   );
 }
@@ -119,11 +120,7 @@ export function TimesTableBoard({ spec, cells, bad, readOnly, onChange }: P<'tim
         ))}
       </div>
       {!readOnly && (
-        <div className="numpad digits" role="group" aria-label="Number pad">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '⌫'].map((d) => (
-            <button key={d} type="button" className={`numkey${d === '⌫' ? ' erase' : ''}`} disabled={!sel} onClick={() => type(d)} aria-label={d === '⌫' ? 'Erase' : d}>{d}</button>
-          ))}
-        </div>
+        <NumberPad disabled={!sel} onKey={type} />
       )}
     </div>
   );

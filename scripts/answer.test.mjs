@@ -67,3 +67,23 @@ test('factor-pair lists match in any order and either way round', () => {
   assert.equal(checkAnswer('31 & 13, 17 & 71, 37 and 73, 97 & 79', ['13 & 31, 17 & 71, 37 & 73, 79 & 97']), true);
   assert.equal(checkAnswer('1, 30, 2, 15', ['1×30, 2×15']), false);
 });
+
+test('number pad: keys per answer, and typing with them', async () => {
+  const { padKeys } = await import('../netlify/functions/_answer.ts');
+  const { applyKey } = await import('../src/pad.ts');
+  assert.deepEqual(padKeys('1326'), []);
+  assert.deepEqual(padKeys('1, 12, 60'), [',']);
+  assert.deepEqual(padKeys('2^3×3^2'), ['×', '^']);
+  assert.deepEqual(padKeys('54 ÷ 6 = 9'), ['÷', '=']);
+  assert.deepEqual(padKeys('13 & 31, 17 & 71'), [',', '&']);
+  assert.deepEqual(padKeys('-3'), ['−']);
+  assert.equal(padKeys('undefined'), null);
+  assert.equal(padKeys('3 r 2'), null);
+  const type = (keys) => keys.reduce((s, k) => applyKey(s.text, s.caret, k), { text: '', caret: 0 }).text;
+  assert.equal(type(['5', '4', '÷', '6', '=', '9']), '54 ÷ 6 = 9');
+  assert.equal(type(['1', ',', '1', '2']), '1, 12');
+  assert.equal(type(['5', '4', '÷', '⌫']), '54'); // erase takes the spaced symbol in one go
+  assert.equal(type(['1', ',', '⌫', '2']), '12');
+  assert.equal(applyKey('15', 1, '2').text, '125'); // inserts at the caret
+  assert.equal(applyKey('125', 2, '⌫').text, '15');
+});

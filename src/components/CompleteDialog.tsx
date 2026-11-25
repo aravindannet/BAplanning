@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import { play, useWindowSound } from '../sound';
 import type { Box } from '../types';
 import { Beast, Star } from './icons';
 
@@ -51,6 +52,14 @@ export function Confetti() {
 
 export function CompleteDialog({ box, chapterNo, chapterTitle, emailed, next, onClose, onNext }: Props) {
   const whole = chapterTitle !== undefined;
+  // its own fanfare instead of the window pop (played once, even when React re-runs effects in development)
+  const played = useRef(false);
+  useEffect(() => {
+    if (played.current) return;
+    played.current = true;
+    play(whole ? 'chapter' : 'box');
+  }, [whole]);
+  useWindowSound(undefined, { open: false });
   return (
     <div className="overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={whole ? 'Chapter complete' : 'Box complete'}>
       <Confetti />

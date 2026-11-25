@@ -127,6 +127,16 @@ export function solveTimesTable(spec, limit = 5) {
 /** Pyramid Descent: every path (as a cell map) whose product is the target. */
 export function solvePyramid(spec) {
   const out = [];
+  if (spec.divisor) {
+    // Division Pyramid: from the top block, step to a touching block below that holds the quotient
+    const rec = (r, c, path) => {
+      const np = [...path, k2(r, c)];
+      if (r === spec.rows.length - 1) { out.push(Object.fromEntries(np.map((k) => [k, 'P']))); return; }
+      for (const cc of [c, c + 1]) if (spec.rows[r + 1][cc] * spec.divisor === spec.rows[r][c]) rec(r + 1, cc, np);
+    };
+    rec(0, 0, []);
+    return out;
+  }
   const rec = (r, c, p, path) => {
     const v = spec.rows[r][c];
     const np = p * v, np2 = [...path, k2(r, c)];

@@ -31,5 +31,22 @@ test('"multiply" is allowed in multiplication puzzles, but other operations and 
   assert.equal(hintProblem('Factor Blob: what do you get when you multiply the numbers in your blob?', { ...tt, puzzle: { type: 'blobs' } }, ''), null);
   assert.match(hintProblem('Multiply first, then divide 60 by the row factor.', tt, ''), /operation to do \("divide"\)/);
   assert.match(hintProblem('Did you multiply carefully?', { prompt: 'A bus holds 23.', parts: [{ answer: '34' }] }, '34'), /operation/);
-  assert.match(hintProblem('Did you multiply carefully?', { ...tt, puzzle: { type: 'sudoku' } }, ''), /operation/);
+  assert.match(hintProblem('Did you multiply carefully?', { prompt: 'Sudoku: fill the grid so each row, column and box has 1 to 4.', parts: [], puzzle: { type: 'sudoku' } }, ''), /operation/);
+});
+test('an operation the problem itself shows may be named; a hidden one may not', () => {
+  const div = { prompt: 'Find the quotient without long division: 32,600 ÷ 50 = ?', parts: [{ answer: '652' }] };
+  assert.equal(hintProblem('What happens to 32,600 when you think of dividing by 50 as two smaller steps?', div, '111'), null);
+  assert.match(hintProblem('What if you multiply first?', div, '111'), /operation to do \("multiply"\)/);
+  // the bus problem never says "divide": naming it still gives the step away
+  assert.match(hintProblem('Try to divide 785 by 25 again.', p, '34'), /operation/);
+});
+test('the next hint is told what was already said and tried', async () => {
+  const { contextText } = await import('../netlify/functions/_hintRules.ts');
+  assert.equal(contextText({}), '');
+  const t = contextText({ earlierHints: [{ hint: '3×3 is a factor of 72, but not of 32.', hintFrom: 'book' }, { hint: 'Which primes are in every product?' }], earlierAnswers: ['9', '12'] });
+  assert.match(t, /earlier wrong answers[\s\S]*1\. 9\n2\. 12/);
+  assert.match(t, /1\. \(from the book\) 3×3 is a factor/);
+  assert.match(t, /2\. Which primes/);
+  assert.match(t, /Do not repeat these hints/);
+  assert.match(t, /Do not refer to them/);
 });

@@ -18,8 +18,11 @@ for (const p of probs) {
   const set = { level: Number(level), chapter: Number(chapter), n: p.n, book, page: p.page, prompt: p.prompt, parts: p.parts, solution: p.solution };
   const unset = {};
   for (const f of OPTIONAL) if (p[f] !== undefined) set[f] = p[f]; else unset[f] = '';
-  // pictures are linked by the image loaders; a reload keeps them
-  await col.updateOne({ _id }, { $set: set, ...(Object.keys(unset).length ? { $unset: unset } : {}), $setOnInsert: { images: { question: [], solution: [] } } }, { upsert: true });
+  // pictures are linked by the image loaders; a reload keeps them. `hideScan`: the problem is now an
+  // interactive board that replaces the scanned question picture, so that picture is dropped.
+  if (p.hideScan) set['images.question'] = [];
+  const onInsert = p.hideScan ? { 'images.solution': [] } : { images: { question: [], solution: [] } };
+  await col.updateOne({ _id }, { $set: set, ...(Object.keys(unset).length ? { $unset: unset } : {}), $setOnInsert: onInsert }, { upsert: true });
 }
 await client.close();
 console.log(`loaded ${probs.length} problems into "${dbName}"`);

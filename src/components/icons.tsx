@@ -171,3 +171,73 @@ export function Stars({ earned, size = 13, arc = false }: { earned: number; size
     </span>
   );
 }
+
+const HEART = 'M25 44 C 12 35 4 27 4 17 C 4 10 9.5 5 16 5 C 20 5 23 7 25 10.5 C 27 7 30 5 34 5 C 40.5 5 46 10 46 17 C 46 27 38 35 25 44 Z';
+/** A cartoon heart (a "life"). `broken`: split down a zigzag crack, the halves tipped apart and faded. */
+export function Heart({ broken = false, size = 30 }: { broken?: boolean; size?: number }) {
+  return (
+    <svg className={`heart${broken ? ' broken' : ''}`} width={size} height={size} viewBox="0 0 50 50" aria-hidden="true" style={{ overflow: 'visible' }}>
+      <defs>
+        <linearGradient id="heartRed" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#FF8A8A" />
+          <stop offset=".5" stopColor="#E5484D" />
+          <stop offset="1" stopColor="#B8282E" />
+        </linearGradient>
+        <linearGradient id="heartGone" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#F3C6C8" />
+          <stop offset="1" stopColor="#C98E92" />
+        </linearGradient>
+        {/* the two halves either side of the crack */}
+        <clipPath id="heartL"><path d="M0 0 H27 L22 14 L28 22 L21 31 L26 50 H0 Z" /></clipPath>
+        <clipPath id="heartR"><path d="M27 0 H50 V50 H26 L21 31 L28 22 L22 14 Z" /></clipPath>
+      </defs>
+      {broken ? (
+        <>
+          <g className="half l" clipPath="url(#heartL)" transform="rotate(-8 18 40) translate(-1 0)">
+            <path d={HEART} fill="url(#heartGone)" stroke={INK} strokeOpacity=".55" strokeWidth="3.5" strokeLinejoin="round" />
+          </g>
+          <g className="half r" clipPath="url(#heartR)" transform="rotate(8 32 40) translate(1 0)">
+            <path d={HEART} fill="url(#heartGone)" stroke={INK} strokeOpacity=".55" strokeWidth="3.5" strokeLinejoin="round" />
+          </g>
+          <path d="M27 6 L22 14 L28 22 L21 31 L26 44" fill="none" stroke={INK} strokeOpacity=".55" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        </>
+      ) : (
+        <>
+          <path d={HEART} fill={INK} transform="translate(0 3)" />
+          <path d={HEART} fill="url(#heartRed)" stroke={INK} strokeWidth="3.5" strokeLinejoin="round" />
+          <ellipse cx="14.5" cy="15" rx="5" ry="2.6" fill="#fff" opacity=".9" transform="rotate(-35 14.5 15)" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+/** A cartoon light bulb (a hint). `lit`: glowing yellow glass with rays; otherwise pale, unused glass. */
+export function Bulb({ lit = false, size = 30 }: { lit?: boolean; size?: number }) {
+  const glass = 'M25 4 C 15 4 9 11 9 19 C 9 25 12.5 28.5 15.5 32 C 17 34 18 35.5 18 38 H32 C32 35.5 33 34 34.5 32 C 37.5 28.5 41 25 41 19 C 41 11 35 4 25 4 Z';
+  return (
+    <svg className={`bulb${lit ? ' lit' : ''}`} width={size} height={size} viewBox="0 0 50 50" aria-hidden="true" style={{ overflow: 'visible' }}>
+      <defs>
+        <radialGradient id="bulbOn" cx=".45" cy=".4" r=".7">
+          <stop offset="0" stopColor="#FFFBE0" />
+          <stop offset=".5" stopColor="#FFE066" />
+          <stop offset="1" stopColor="#F5B31D" />
+        </radialGradient>
+        <linearGradient id="bulbOff" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#F7F9FB" />
+          <stop offset="1" stopColor="#DCE3EA" />
+        </linearGradient>
+      </defs>
+      {lit && (
+        <g className="rays" stroke="#F5B31D" strokeWidth="3" strokeLinecap="round">
+          <path d="M25 -5 V-1" /><path d="M9 0 L11.5 3" /><path d="M41 0 L38.5 3" />
+        </g>
+      )}
+      <path d={glass} fill={lit ? 'url(#bulbOn)' : 'url(#bulbOff)'} stroke={INK} strokeOpacity={lit ? 1 : 0.4} strokeWidth="3.2" strokeLinejoin="round" />
+      {lit && <path d="M20 30 Q 22 22 25 27 Q 28 22 30 30" fill="none" stroke="#E08A00" strokeWidth="2.2" strokeLinecap="round" />}
+      {lit && <ellipse cx="18" cy="14" rx="3.6" ry="2" fill="#fff" opacity=".95" transform="rotate(-40 18 14)" />}
+      <rect x="17.5" y="38" width="15" height="9" rx="2.5" fill={lit ? '#9AA6B4' : '#C9D1DA'} stroke={INK} strokeOpacity={lit ? 1 : 0.4} strokeWidth="3" />
+      <path d="M18.5 42.5 H31.5" stroke={INK} strokeOpacity={lit ? 0.6 : 0.25} strokeWidth="2" />
+    </svg>
+  );
+}

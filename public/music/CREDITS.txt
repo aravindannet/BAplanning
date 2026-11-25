@@ -1,0 +1,5 @@
+Background music: "JRPG Music Pack #4 [Calm]" by Juhani Junkala (SubspaceAudio)
+https://opengameart.org/node/73693
+License: CC0 1.0 (public domain) - "You can do anything you want with these tunes."
+Tracks used: Childhood Friends, Peaceful Days, Sand Castles, Summer Memories.
+Converted from OGG to AAC (.m4a, 80 kbps) and loudness-normalised to -20 LUFS for the app.

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { learnImageUrl, markLearned } from '../api';
+import { play, useWindowSound } from '../sound';
 
 /** The book's explanation / example area for the pages of a practice task, shown as scanned. */
 export function LearnDialog({ level, chapter, pages, taskId, alreadyLearned, onLearned, onClose }: { level: number; chapter: number; pages: number[]; taskId: string; alreadyLearned: boolean; onLearned: () => void; onClose: () => void }) {
   const [i, setI] = useState(0);
+  useWindowSound();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -15,6 +17,7 @@ export function LearnDialog({ level, chapter, pages, taskId, alreadyLearned, onL
     if (!alreadyLearned) {
       try {
         await markLearned(level, chapter, taskId);
+        play('done');
         onLearned();
       } catch {
         /* the kid can try again */

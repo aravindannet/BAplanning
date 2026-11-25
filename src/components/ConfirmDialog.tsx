@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useWindowSound } from '../sound';
 
 interface Props {
   title: string;
@@ -14,6 +15,7 @@ interface Props {
 
 export function ConfirmDialog({ title, body, confirmLabel, danger, passcode, error, busy, onConfirm, onCancel }: Props) {
   const [code, setCode] = useState('');
+  useWindowSound();
   useEffect(() => {
     if (error) setCode(''); // a wrong passcode clears the box for another try
   }, [error]);

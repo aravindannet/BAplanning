@@ -1,9 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { PinRequired, checkProblem, fetchProblem, fetchReview, problemImageUrl, solutionImageUrl, type GivenHint, type ProblemView, type Review } from '../api';
-import { Beast, Medal, Star } from './icons';
+import { Beast, Medal, Star, Heart, Bulb } from './icons';
 import { Confetti } from './CompleteDialog';
 import { PuzzleBoard } from './puzzles/PuzzleBoard';
 import { ChoicePicker } from './puzzles/ChoicePicker';
+import { NumberPad } from './NumberPad';
+import { applyKey } from '../pad';
+import { play, useWindowSound } from '../sound';
 import { RoughNote, RoughThumb } from './RoughNote';
 import type { Cells } from '../../netlify/functions/_puzzle';
 
@@ -42,10 +45,16 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   // every hint given for this problem (oldest first); the newest is shown, the rest behind "Earlier hints"
   const [hints, setHints] = useState<GivenHint[]>([]);
   const [showEarlier, setShowEarlier] = useState(false);
+  // lives: every wrong answer breaks one of 2 hearts; every hint lights one of 3 bulbs
+  const [wrong, setWrong] = useState(0);
+  const [bump, setBump] = useState<{ heart: boolean; bulb: boolean } | null>(null); // the icons that just changed animate
   const latest = hints.length ? hints[hints.length - 1] : null;
   const [cells, setCells] = useState<Cells>({});
   const [wrongParts, setWrongParts] = useState<Set<string>>(new Set());
   const first = useRef<HTMLInputElement>(null);
+  // number-pad answers: the pad types into the box last tapped (the first one to start with)
+  const inputs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [active, setActive] = useState<string | null>(null);
   // The problem must fit on screen without scrolling: step the size down until it does (the solution
   // panel, once opened, may scroll). Re-fit when the content or the window changes.
   const dlg = useRef<HTMLDivElement>(null);
@@ -55,8 +64,10 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   const [notes, setNotes] = useState(false);
   const [flip, setFlip] = useState<'out' | 'in' | null>(null);
   const [flipped, setFlipped] = useState(false); // after the first flip, the opening animation must not replay
+  useWindowSound(n); // pop on open and on moving to the next problem, pop-down on close
   const flipTo = (show: boolean) => {
     if (flip) return;
+    play('flip');
     setFlip('out');
     setFlipped(true);
     window.setTimeout(() => {
@@ -79,6 +90,9 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
     setMsg(null);
     setHints([]);
     setShowEarlier(false);
+    setActive(null);
+    setWrong(0);
+    setBump(null);
     setWrongParts(new Set());
     setJustSolved(false);
     setShowReview(false);
@@ -90,6 +104,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
         setP(v);
         setSolved(v.solved);
         setHints(v.hints ?? []);
+        setWrong(v.attempts ?? 0);
         if (v.solved) setShowReview(true); // opening a solved problem shows its solution and history right away
       })
       .catch((e) => {
@@ -147,6 +162,23 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   const board = p?.kind === 'puzzle' && p.puzzle && p.puzzle.type !== 'logicgrid';
   const allFilled = p ? (board ? Object.values(cells).some((v) => v) : true) && p.parts.every((x) => (answers[x.label] ?? '').trim()) : false;
 
+  const padParts = p?.parts.filter((x) => x.pad) ?? [];
+  const padPart = padParts.find((x) => x.label === active) ?? padParts[0];
+  const pressKey = (k: string) => {
+    if (!padPart) return;
+    const el = inputs.current[padPart.label];
+    const cur = answers[padPart.label] ?? '';
+    let start = el?.selectionStart ?? cur.length, end = el?.selectionEnd ?? cur.length;
+    if (document.activeElement !== el) start = end = cur.length; // not focused: add at the end
+    let text = cur.slice(0, start) + cur.slice(end), caret = start; // typing replaces a selection
+    if (!(k === '⌫' && start !== end)) ({ text, caret } = applyKey(text, caret, k));
+    setAnswers((a) => ({ ...a, [padPart.label]: text }));
+    requestAnimationFrame(() => {
+      el?.focus({ preventScroll: true });
+      el?.setSelectionRange(caret, caret);
+    });
+  };
+
   const submit = async () => {
     if (!p || busy || !allFilled) return;
     setBusy(true);
@@ -154,6 +186,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
     try {
       const r = await checkProblem(level, chapter, n, answers, p.kind === 'puzzle' ? cells : undefined);
       if (r.correct) {
+        play('correct');
         setStars(r.stars ?? 3);
         setSolved(true);
         setJustSolved(true);
@@ -161,11 +194,16 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
         setHints([]);
         onSolved();
       } else {
+        play('wrong');
         setShake((s) => s + 1);
+        setWrong((w) => w + 1);
+        setBump({ heart: wrong + 1 <= 2, bulb: Boolean(r.hint) && hints.length < 3 });
+        window.setTimeout(() => setBump(null), 1200);
         setWrongParts(new Set((r.results ?? []).filter((x) => !x.ok).map((x) => x.label)));
         setMsg(p.kind === 'explain' ? 'Not quite yet. Look at the hint and try again!' : 'Not quite. Try again!');
         if (r.hint) {
           const given = { hint: r.hint, hintFrom: r.hintFrom, at: new Date().toISOString() };
+          window.setTimeout(() => play('hint'), 550); // after the wrong-answer boop
           setHints((h) => [...h, given]);
         }
         else if (r.hintsLeft === false) setMsg('Not quite. You have used all of today’s hints for this one. Ask a grown-up for help!');
@@ -187,6 +225,25 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
         <div className="problem-head">
           <span className="coin big"><Medal n={n} kind={solved ? 'green' : 'gold'} /></span>
           <span className="problem-src">{p?.book ? `Book ${p.book}` : ''}{p?.page ? ` · page ${p.page}` : ''}</span>
+          {p && !(solved && !justSolved) && (
+            <span
+              className="lives"
+              role="img"
+              aria-label={`${Math.min(wrong, 2)} of 2 hearts broken, ${Math.min(hints.length, 3)} of 3 hints used`}
+            >
+              {[0, 1].map((i) => (
+                <span key={`h${i}`} className={`life${bump?.heart && i === wrong - 1 ? ' just' : ''}`}>
+                  <Heart broken={i < wrong} />
+                </span>
+              ))}
+              <span className="lives-gap" />
+              {[0, 1, 2].map((i) => (
+                <span key={`b${i}`} className={`life${bump?.bulb && i === hints.length - 1 ? ' just' : ''}`}>
+                  <Bulb lit={i < hints.length} />
+                </span>
+              ))}
+            </span>
+          )}
           <button type="button" className="rough-open" onClick={() => flipTo(true)}>📝 Rough note</button>
         </div>
         {!p && !msg && <p className="what">Loading…</p>}
@@ -299,10 +356,16 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                       />
                     ) : (
                       <input
-                        ref={i === 0 ? first : undefined}
+                        ref={(el) => {
+                          inputs.current[part.label] = el;
+                          if (i === 0) first.current = el;
+                        }}
+                        className={part.pad && padParts.length > 1 && padPart?.label === part.label ? 'pad-active' : undefined}
                         value={answers[part.label] ?? ''}
                         onChange={(e) => setAnswers({ ...answers, [part.label]: e.target.value })}
-                        inputMode="text"
+                        onFocus={() => setActive(part.label)}
+                        // number answers use the on-screen pad below, not the iPad keyboard (a real keyboard still types)
+                        inputMode={part.pad ? 'none' : 'text'}
                         autoComplete="off"
                         autoCapitalize="off"
                         placeholder="Your answer"
@@ -311,6 +374,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                     )}
                   </div>
                 ))}
+                {padPart && <NumberPad keys={padPart.pad ?? []} onKey={pressKey} />}
                 {msg && <div className="problem-msg" role="status">{msg}</div>}
                 {latest && (
                   <div className={`hint${latest.hintFrom === 'book' ? ' book' : ''}`}>
