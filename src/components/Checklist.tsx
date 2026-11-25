@@ -3,6 +3,7 @@ import { LEVELS, PLANS, isBoxDone } from '../plans';
 import type { Box } from '../types';
 import { Beast } from './icons';
 import { TaskRow } from './TaskRow';
+import { isMusicWanted, setMusicWanted } from '../sound';
 
 /**
  * One box. The right-hand panel must never scroll, so the box measures itself: if its content is
@@ -79,6 +80,30 @@ interface Props {
   learned: Set<string>;
   stars: Record<string, number>;
   lock: Record<string, { reason: 'learn' } | { reason: 'previous'; need: number } | { reason: 'box'; need: number }>;
+}
+
+/** Background music on/off. Only the music: click and answer sounds keep playing. Remembered on this device. */
+function MusicButton() {
+  const [on, setOn] = useState(isMusicWanted);
+  return (
+    <button
+      type="button"
+      className={`music-btn${on ? '' : ' off'}`}
+      aria-pressed={on}
+      aria-label={on ? 'Music is on. Tap to turn the music off.' : 'Music is off. Tap to turn the music on.'}
+      onClick={() => {
+        setMusicWanted(!on);
+        setOn(!on);
+      }}
+    >
+      <svg viewBox="0 0 40 40" width="26" height="26" aria-hidden="true">
+        <path d="M15 29V9l17-4v19" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinejoin="round" strokeLinecap="round" />
+        <ellipse cx="10.5" cy="29.5" rx="5.5" ry="4.3" fill="currentColor" />
+        <ellipse cx="27.5" cy="24.5" rx="5.5" ry="4.3" fill="currentColor" />
+        {!on && <path d="M5 5 L35 35" stroke="#D13B3B" strokeWidth="4.5" strokeLinecap="round" />}
+      </svg>
+    </button>
+  );
 }
 
 export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAll, onNavigate, available, solved, onOpenProblem, learn, onOpenLearn, learned, stars, lock }: Props) {
@@ -159,6 +184,7 @@ export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAl
               <div className="eyebrow">Level {level} · Chapter {chapter.number}</div>
               <h1>{chapter.title}</h1>
             </div>
+            <MusicButton />
             <button className={`all-btn${allDone ? ' undo' : ''}`} onClick={() => onChapterAll(chapter.number, !allDone)}>
               {allDone ? '↺ Undo all' : '✓ Complete whole chapter'}
             </button>

@@ -522,3 +522,12 @@ textarea.explain { flex: 1; font: 500 20px/1.4 var(--sans); padding: 12px 14px; 
 @keyframes bulb-on { 0% { transform: scale(.6); filter: brightness(.6); } 50% { transform: scale(1.3); filter: brightness(1.25) drop-shadow(0 0 8px #ffd54a); } 100% { transform: none; filter: drop-shadow(0 0 4px #ffd54a); } }
 .bulb.lit { filter: drop-shadow(0 0 3px rgba(255, 213, 74, .8)); }
 @media (prefers-reduced-motion: reduce) { .life.just svg { animation: none !important; } }
+
+/* ---------- music on/off (banner): styled like the "Complete whole chapter" button next to it ---------- */
+.music-btn { flex: none; display: inline-grid; place-items: center; width: 48px; padding: 0; border-radius: 12px; background: #fff; color: var(--blue); border: 3px solid var(--blue); box-shadow: 0 3px 0 rgba(0, 0, 0, .3); transition: transform .15s; }
+.music-btn:hover { transform: translateY(-1px); }
+.music-btn svg { width: 22px; height: 22px; }
+.music-btn.off { color: var(--muted); border-color: var(--silver); }
+/* the two banner buttons are exactly the same height */
+.banner .music-btn, .banner .all-btn { height: 40px; box-sizing: border-box; }
+.banner .all-btn { display: inline-flex; align-items: center; }

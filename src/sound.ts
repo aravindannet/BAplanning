@@ -196,9 +196,38 @@ const TRACKS = ['1-childhood-friends', '2-peaceful-days', '3-sand-castles', '4-s
 let player: HTMLAudioElement | null = null;
 let track = Math.floor(Math.random() * TRACKS.length);
 
+// ---------- music on/off (remembered on this device; the click and answer sounds always play) ----------
+const MUSIC_PREF = 'ba.music';
+let musicWanted = (() => {
+  try {
+    return localStorage.getItem(MUSIC_PREF) !== 'off';
+  } catch {
+    return true;
+  }
+})();
+export const isMusicWanted = () => musicWanted;
+export function setMusicWanted(on: boolean) {
+  musicWanted = on;
+  try {
+    localStorage.setItem(MUSIC_PREF, on ? 'on' : 'off');
+  } catch {
+    /* private mode: just for this visit */
+  }
+  if (on) {
+    if (ctx?.state === 'running') startMusic(); // the tap on the button has already unlocked the audio
+  } else {
+    player?.pause();
+    musicOn = false;
+    if (ctx && music) {
+      music.gain.cancelScheduledValues(ctx.currentTime);
+      music.gain.setValueAtTime(0, ctx.currentTime);
+    }
+  }
+}
+
 function startMusic() {
   const c = ctx;
-  if (!c || !music || musicOn) return;
+  if (!c || !music || musicOn || !musicWanted) return;
   musicOn = true;
   if (!player) {
     const el = new Audio();

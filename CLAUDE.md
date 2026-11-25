@@ -20,6 +20,8 @@ What the kid sees:
   - The answer types are typed answers, tap buttons, themed dropdowns, written explanations, and interactive puzzle boards.
   - A wrong answer keeps the kid on the problem. From the 2nd wrong answer, the kid first gets **the book's own printed hint** (for ★ problems), then **AI hints** (questions about the idea, never the step or the answer).
   - Hints already given stay with the problem until it is solved. Reopening the window shows the latest one, older ones sit behind "Earlier hints (n)", and the Rough note has a 💡 Hint button that shows the latest.
+  - **Lives row** in the problem header: 2 cartoon hearts (each wrong answer breaks one) and 3 bulbs (each hint lights one). Counts come from the server (`attempts`, `hints`), so they survive reopening; hidden on solved problems. No tooltip (the user asked for none).
+  - **Number pad:** typed number answers use an on-screen pad (digits ⌫, plus only the symbol keys the answer needs: `, × ^ ÷ = & / . −`), not the iPad keyboard (`inputMode="none"`; a real keyboard still types). Answers with letters keep the keyboard.
 - **Order rules:** a box's problems (and its **Learn** page) open only after every required problem in earlier boxes is solved. Learn must be read first. Then problems open one at a time; dashed (optional) problems never block anything.
 - **Stars:** 3, 2, or 1 star per problem, from the number of wrong answers.
 - **Solved problems:** opening one shows its history: every try, wrong answers, hints (book or AI), the answer, the solution, the final board, and the rough work.
@@ -27,7 +29,8 @@ What the kid sees:
   - The page scrolls and grows: there is always one blank screen below the lowest writing, up to 4.9 page-widths (about 7 iPad screens).
   - Scrolling: two fingers (before any pencil use, one finger draws); one finger once a pencil has been used (palm rejection); the ▲/▼ buttons; the mouse wheel.
 - **No text selection:** the whole app turns off text selection and the iPad long-press menu, so a held finger or resting pencil can't select the page. Inputs and textareas are still selectable.
-- **Parent passcode:** "Complete whole chapter" / "Undo all" need it.
+- **Parent passcode:** "Complete whole chapter" / "Undo all" need it, and so does ticking or unticking a **Guide** or **Online practice** task: the kid shows their work and a grown-up enters the passcode (button "👀 Show a grown-up"; the server checks it too, `needsParent()` in `src/types.ts`). Book practice is ticked by the kid once its problems are solved.
+- **Sounds and music** (`src/sound.ts`, Web Audio): every kind of action has its own sound and the same action always the same one: click (buttons), a low "thock" (pad keys and board cells), pop / pop-down (windows), flip (Rough note), correct, wrong (also a wrong passcode), hint, done, undo, box and chapter fanfares. Background music is a playlist of 4 CC0 tracks by Juhani Junkala (`public/music/`, credits in `CREDITS.txt`), soft under the effects. It starts on the first tap (iPad rule), stops when the app is hidden or the tab closes, follows the iPad volume and silent mode. The 🎵 button in the chapter banner turns **only the music** off (remembered per device, `localStorage ba.music`); clicks keep playing.
 - **Home screen:** the app can be added to the iPad home screen with its own icon (`public/icon.svg`).
 
 ## 2. Where things are
@@ -47,7 +50,9 @@ src/
     puzzles/PuzzleBoard.tsx       boards for Ch 6 types (sudoku family, hive, minesweeper, tents, logic chart)
     puzzles/FactorBoards.tsx      boards for Ch 7 types (blobs, pyramid, times table, sieve)
     puzzles/ChoicePicker.tsx      themed dropdown (no native <select>)
-    Tooltip.tsx, icons.tsx        cartoon tooltip; Medal / Star SVGs
+    Tooltip.tsx, icons.tsx        cartoon tooltip; Medal / Star / Heart / Bulb SVGs
+    NumberPad.tsx                 on-screen number pad (answers and the times table); typing logic in src/pad.ts
+  sound.ts                      all sounds, the music playlist, music on/off
   styles.css                  all styles (cartoon theme: navy outlines, gold, cream)
 netlify/functions/
   problems.ts      GET coverage / one problem / review; POST answer check, Learn done
@@ -107,7 +112,7 @@ A problem document (`ProblemDoc` in `_mongo.ts`):
 
 | Kind | How the kid answers | How it is checked |
 |---|---|---|
-| typed text | input box | `checkAnswer` (§5) |
+| typed text | input box + number pad (the GET sends `pad` keys per part from `padKeys()`; `null` = letters, keyboard) | `checkAnswer` (§5) |
 | `choices` (≤6 short) | big tap buttons | exact choice |
 | `choices` (longer) | themed dropdown (`ChoicePicker`) | exact choice |
 | `choices` + `multi` | tap every number that fits ("circle every…") | list, any order |
@@ -126,7 +131,7 @@ Puzzle types (`PuzzleSpec` in `_puzzle.ts`):
 | `tents` | 6 | tap: tent → ✕ → blank | tent positions |
 | `logicgrid` (✓/✗ scratch chart) | 6 | tap cells | only the answer parts |
 | `blobs` (Factor Blobs) | 7 | tap squares, "Make blob" | **rules** (any valid grouping) |
-| `pyramid` (Pyramid Descent) | 7 | tap one per row | **rules** (product + touching) |
+| `pyramid` (Pyramid Descent; with `divisor` = Division Pyramid) | 7, 5 | tap one per row | **rules** (product = `target`, or each block = the one above ÷ `divisor`; touching) |
 | `timestable` (times table puzzles) | 7 | multi-digit pad | stored solution |
 | `sieve` (Sieve of Eratosthenes) | 7 | tap: circle → cross | **rules** (primes circled) |
 
@@ -174,6 +179,9 @@ The cap is 3 hints per problem per day.
 
 `_hintRules.ts` rejects any hint that breaks the rules. The AI gets one retry, then a safe generic question is shown. Puzzle hints include the kid's board as text.
 
+- **Hint context:** each AI hint is sent the hints already given (book and AI) and the earlier wrong answers since the last solve (last 5 each; puzzle boards left out), told not to repeat them and to go one small step further without referring to them (`contextText()` in `_hintRules.ts`). Numbers from those are allowed in the new hint.
+- **Shown operations may be named:** a hint may name an operation the problem itself shows (÷ / "quotient" → divide, × / "product" → multiply, …, `SHOWN_OPS`). A hidden one stays blocked (the bus problem never says divide). Before this, most Ch 5 division hints fell back to the generic safe hint.
+
 - **The retry is a fresh single question** (the original content plus a note naming the broken rule). An earlier version sent the rejected draft back as an assistant turn plus "that breaks a rule", and the model answered conversationally ("You're right, that hint named an operation…"), which the kid saw. Do not go back to that.
 - **Self-talk is rejected:** hints that mention "that/this/my/last hint", "I shouldn't…", or open with "You're right" / "Sorry" fail the rules (`META` in `_hintRules.ts`).
 - **"Multiply" is allowed** in `timestable`, `blobs` and `pyramid` puzzles (`MULTIPLY_PUZZLES`), where multiplying is the whole puzzle. Other operation words are still blocked there, and "multiply" is blocked everywhere else. Before this, times-table hints usually fell back to the generic safe hint.
@@ -206,7 +214,8 @@ The user scans the practice pages, the solution pages, and the "Hints to Selecte
    node --env-file=.env scripts/load-problems.mjs problem-data/ba4-c<N>.mjs 4 <N> --book 4C --db beast_academy_dev
    node --env-file=.env problem-data/load-c<N>-images.mjs beast_academy_dev
    ```
-   `load-problems` keeps existing images on reload.
+   `load-problems` keeps existing images on reload. A problem with `hideScan: true` (a board that replaces the scanned question picture, e.g. the Ch 5 Division Pyramids) has its question picture cleared.
+   - Make the book's puzzles interactive, never "type what you would circle": "circle all…" → `choices` + `multi`; "circle the one…" / "circle one" → `choices`; pyramids, grids → a puzzle board.
 7. **Test** (§8), then let the user try it locally with `UNLOCK_ALL=1`.
 8. **Go live only when the user says so:** load the same two commands with `beast_academy`, then commit and push (auto-deploy). Verify read-only on the live site with the `x-app-pin` header.
 9. Add the chapter file name to `CHAPTERS` in `scripts/chapter-content.test.mjs`.
@@ -224,6 +233,8 @@ The user scans the practice pages, the solution pages, and the "Hints to Selecte
   - rough note: draw/erase/undo, reload, close-at-once, offline (block `PUT /api/scratch`)
   - rough note scrolling: draw near the bottom (page grows), ▼, two-finger drag (synthetic `touch` PointerEvents with two ids), pen stroke then one-finger drag scrolls, a stroke dragged off the left edge still saves
   - hints: two wrong tries on a ★ problem (hints start on the 2nd), close and reopen, the hint is still there; a third try shows "Earlier hints (1)"
+  - number pad: solve by tapping pad keys only (plain number, list, factor pairs, prime factorization, equation, multi-part); word answers still get a text box
+  - sounds: open pages with **`?mute`** (localhost only: silent engine, so tests never play through the Mac's speakers). `window.__sounds` logs every sound name; `window.__audio()` gives `{state, musicOn, playing, track}`; `window.__audioEnd()` jumps to the end of a track
 - **Afterwards**, clear test progress and notes from the dev DB, stop the dev server, and check that no MongoDB sockets are left open:
   `lsof -i -nP | grep ':27017' | grep -c ESTABLISHED`
 
@@ -238,6 +249,9 @@ The user scans the practice pages, the solution pages, and the "Hints to Selecte
 - **Don't use `touch-action: pan-y` on the drawing canvas:** in Safari it applies to the Apple Pencil too, so the pencil would scroll instead of drawing. Finger scrolling is done by hand in the pointer handlers.
 - **Clamp stroke points:** with pointer capture, a stroke dragged off the page gives x < 0. `sanitize` refuses the **whole** page if any point is out of range (x −0.05…, y …5), which left notes stuck on "Saved on this device". `pos()` clamps x to 0–1 and y to 0–4.9.
 - **iPad long-press selection:** CSS `user-select: none` is not enough on the canvas. It also needs a non-passive `touchstart`/`touchmove` listener that calls `preventDefault()` (React's touch listeners are passive), plus `selectstart` blocked while the note is open.
+- **Test browsers play sound:** headless Playwright WebKit plays through the Mac's speakers, and a test's first tap starts the music. Always open pages with `?mute` (or stub `window.AudioContext` with `addInitScript`).
+- **iPad audio:** iOS keeps a page that plays audio alive in the background, so music must be stopped on `visibilitychange` (hidden) and the engine closed on `pagehide`. Web Audio and the music `<audio>` element (routed through `createMediaElementSource`) only start after a tap. In development, Vite hot reload kept an old copy of `sound.ts` playing; `import.meta.hot.dispose` stops it.
+- **StrictMode runs effects twice in development:** window pop/pop-down sounds are deferred one tick so a mount-unmount-mount pair cancels out; one-shot sounds (fanfares) use a ref guard.
 - **The problem window must not scroll:** it measures itself and steps `--ps` from 1 down to 0.55. Re-fit is triggered by content changes and by image `onLoad`. New UI inside it should size with `calc(… * var(--ps))`.
 - **Home-screen web apps:** iPad home-screen icons must be PNG (`apple-touch-icon.png`), rendered from `public/icon.svg` with `@napi-rs/canvas`. A home-screen app has separate storage from Safari, so it asks for the PIN once.
 - **The dev server sometimes dies** when the shell resets. Restart it with `(nohup npx netlify dev --port 8888 > /tmp/ba-dev.log 2>&1 &)`.
@@ -249,7 +263,7 @@ Level 4 problems loaded (dev and prod):
 | Chapter | Book | Problems in the app | Notes |
 |---|---|---|---|
 | 4 Counting | 4B | 91–106 | the rest not scanned yet |
-| 5 Division | 4B | 144 of 147 | 97, 122, 123 not loaded (no auto-checkable answer) |
+| 5 Division | 4B | 144 of 147 | 97, 122, 123 not loaded (no auto-checkable answer). Interactive since Nov 2026: Division Pyramids #98–105 (boards, scans hidden), closest estimates #53–64 (tap one), circle-the-numbers #106, 107, 125, 128, 130–132, 134 (tap) |
 | 6 Logic | 4B | 1–120 | 14–18 answers derived (solution pages 128–129 were missing) |
 | 7 Factors | 4C | 1–147 | complete, with hints for 140–147 from page 106 |
 
