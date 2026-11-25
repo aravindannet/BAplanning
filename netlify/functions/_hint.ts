@@ -77,8 +77,10 @@ export async function makeHint(p: ProblemDoc, wrongAnswer: string, level = 1): P
     if (first === null) return { hint: FALLBACK_HINT, ai: false };
     const why = hintProblem(first, p, wrongAnswer);
     if (!why) return { hint: first, ai: true };
-    // one retry, telling the model which rule it broke
-    const second = await ask([...messages, { role: 'assistant', content: first }, { role: 'user', content: `That hint breaks a rule: ${why}. Write a new hint that follows every rule.` }]);
+    // one retry as a fresh question that names the broken rule. (Replying to its own rejected draft made the
+    // model answer conversationally, e.g. "You're right, that hint ...", and the child saw that.)
+    const note = { type: 'text', text: `Careful: a draft of this hint was thrown away because ${why}. Write only the hint itself, speaking to the child. Do not mention any draft, earlier hint or rule.` };
+    const second = await ask([{ role: 'user', content: [...content, note] }]);
     if (second && !hintProblem(second, p, wrongAnswer)) return { hint: second, ai: true };
     console.warn('[hint] rules broken twice, using the safe hint:', why);
     return { hint: SAFE_HINT, ai: false };

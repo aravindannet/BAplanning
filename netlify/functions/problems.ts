@@ -114,6 +114,8 @@ export default withMongo(async (req: Request): Promise<Response> => {
       hasBookHint: Boolean(p.bookHint),
       solved: st?.solved ?? false,
       attempts: st?.attempts ?? 0,
+      // hints the kid has already been given, so they can be read again after the window is closed
+      ...(st?.solved ? {} : { hints: (st?.history ?? []).filter((h) => h.hint).map((h) => ({ hint: h.hint!, hintFrom: h.hintFrom, at: h.at })) }),
     });
   }
 

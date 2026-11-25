@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { PinRequired, checkProblem, fetchProblem, fetchReview, problemImageUrl, solutionImageUrl, type ProblemView, type Review } from '../api';
+import { PinRequired, checkProblem, fetchProblem, fetchReview, problemImageUrl, solutionImageUrl, type GivenHint, type ProblemView, type Review } from '../api';
 import { Beast, Medal, Star } from './icons';
 import { Confetti } from './CompleteDialog';
 import { PuzzleBoard } from './puzzles/PuzzleBoard';
@@ -39,8 +39,10 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   const [stars, setStars] = useState(3);
   const [shake, setShake] = useState(0);
   const [msg, setMsg] = useState<string | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
-  const [hintFrom, setHintFrom] = useState<'book' | 'ai' | undefined>(undefined);
+  // every hint given for this problem (oldest first); the newest is shown, the rest behind "Earlier hints"
+  const [hints, setHints] = useState<GivenHint[]>([]);
+  const [showEarlier, setShowEarlier] = useState(false);
+  const latest = hints.length ? hints[hints.length - 1] : null;
   const [cells, setCells] = useState<Cells>({});
   const [wrongParts, setWrongParts] = useState<Set<string>>(new Set());
   const first = useRef<HTMLInputElement>(null);
@@ -73,10 +75,10 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
     setP(null);
     setAnswers({});
     setCells({});
-    setHintFrom(undefined);
     setSolved(false);
     setMsg(null);
-    setHint(null);
+    setHints([]);
+    setShowEarlier(false);
     setWrongParts(new Set());
     setJustSolved(false);
     setShowReview(false);
@@ -87,6 +89,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
         if (!live) return;
         setP(v);
         setSolved(v.solved);
+        setHints(v.hints ?? []);
         if (v.solved) setShowReview(true); // opening a solved problem shows its solution and history right away
       })
       .catch((e) => {
@@ -119,7 +122,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   }, [p?.n, solved, shake]);
 
   const SCALES = [1, 0.92, 0.85, 0.78, 0.72, 0.66, 0.6, 0.55];
-  const contentKey = `${p?.n}|${solved}|${Boolean(hint)}|${msg ?? ''}|${showReview}|${wrongParts.size}|${notes}`;
+  const contentKey = `${p?.n}|${solved}|${hints.length}|${showEarlier}|${msg ?? ''}|${showReview}|${wrongParts.size}|${notes}`;
   useEffect(() => {
     setFit(0);
     setFitEpoch((e) => e + 1);
@@ -155,15 +158,15 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
         setSolved(true);
         setJustSolved(true);
         setReview(null);
-        setHint(null);
+        setHints([]);
         onSolved();
       } else {
         setShake((s) => s + 1);
         setWrongParts(new Set((r.results ?? []).filter((x) => !x.ok).map((x) => x.label)));
         setMsg(p.kind === 'explain' ? 'Not quite yet. Look at the hint and try again!' : 'Not quite. Try again!');
         if (r.hint) {
-          setHint(r.hint);
-          setHintFrom(r.hintFrom);
+          const given = { hint: r.hint, hintFrom: r.hintFrom, at: new Date().toISOString() };
+          setHints((h) => [...h, given]);
         }
         else if (r.hintsLeft === false) setMsg('Not quite. You have used all of today’s hints for this one. Ask a grown-up for help!');
       }
@@ -177,7 +180,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   return (
     <div className="overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={`Problem ${n}`}>
       <div ref={dlg} className={`dialog problem${solved && showReview && !notes ? ' scrolls' : ''}${notes ? ' notes' : ''}${flip ? ` flip-${flip}` : ''}${flipped ? ' settled' : ''}`} style={{ ['--ps' as string]: SCALES[fit] }} onClick={(e) => e.stopPropagation()}>
-        {notes && <RoughNote level={level} chapter={chapter} n={n} onBack={() => flipTo(false)} />}
+        {notes && <RoughNote level={level} chapter={chapter} n={n} hint={solved ? undefined : latest?.hint} onBack={() => flipTo(false)} />}
         <div className="face-front" style={notes ? { display: 'none' } : undefined}>
         {solved && justSolved && <Confetti />}
         <button className="x-close" aria-label="Close" onClick={onClose}>{'✕'}</button>
@@ -309,10 +312,24 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                   </div>
                 ))}
                 {msg && <div className="problem-msg" role="status">{msg}</div>}
-                {hint && (
-                  <div className={`hint${hintFrom === 'book' ? ' book' : ''}`}>
+                {latest && (
+                  <div className={`hint${latest.hintFrom === 'book' ? ' book' : ''}`}>
                     <Beast className="hint-beast" />
-                    <p>{hintFrom === 'book' && <b className="hint-from">📘 Hint from the book</b>}{hint}</p>
+                    <p>{latest.hintFrom === 'book' && <b className="hint-from">📘 Hint from the book</b>}{latest.hint}</p>
+                  </div>
+                )}
+                {hints.length > 1 && (
+                  <div className="earlier-hints">
+                    <button type="button" className="link" aria-expanded={showEarlier} onClick={() => setShowEarlier((v) => !v)}>
+                      {showEarlier ? 'Hide earlier hints' : `Earlier hints (${hints.length - 1})`}
+                    </button>
+                    {showEarlier && (
+                      <ol>
+                        {hints.slice(0, -1).reverse().map((h, i) => (
+                          <li key={i}>{h.hintFrom === 'book' && <b>📘 </b>}{h.hint}</li>
+                        ))}
+                      </ol>
+                    )}
                   </div>
                 )}
                 <button className="bn primary" type="submit" disabled={!allFilled || busy}>{busy ? 'Checking…' : 'Check'}</button>

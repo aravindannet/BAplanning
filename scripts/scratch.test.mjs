@@ -30,3 +30,11 @@ test('the newer copy wins', () => {
   assert.equal(newer(null, a), a);
   assert.equal(newer(a, null), a);
 });
+test('a tall page (scrolled rough note) and points at the page edges are accepted', () => {
+  // the browser clamps x to 0..1 and y to 0..4.9 page-widths; those must always pass
+  const d = sanitize({ updatedAt: 7, strokes: [{ c: '#d13b3b', w: 4.5, p: [0, 0, 0.5, 1, 2.5, 0.5, 0.5, 4.9, 0.5] }] });
+  assert.ok(d);
+  assert.equal(d.strokes[0].p[7], 4.9);
+  // an unclamped point dragged off the left edge would sink the whole save
+  assert.equal(sanitize({ updatedAt: 7, strokes: [{ c: '#d13b3b', w: 4.5, p: [-0.2, 0.1, 0.5] }] }), null);
+});

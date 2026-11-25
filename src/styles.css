@@ -13,6 +13,9 @@
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
 body { margin: 0; overflow: hidden; background: var(--cream); color: var(--navy); font-family: var(--sans); -webkit-tap-highlight-color: transparent; }
+/* a press-and-hold (or a resting pencil) must not start selecting text or open the iPad's copy/look-up menu */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 button { font: inherit; cursor: pointer; border: 0; background: none; color: inherit; padding: 0; }
 h1, h2, p { margin: 0; }
 
@@ -478,11 +481,23 @@ textarea.explain { flex: 1; font: 500 20px/1.4 var(--sans); padding: 12px 14px; 
 .rough-status { margin-left: auto; font: 600 14px var(--sans); color: var(--muted); }
 .rough-status.rs-saved { color: var(--green-dk); }
 .rough-status.rs-local { color: var(--brick); }
-.rough-page { flex: 1; min-height: 0; position: relative; border: 3px solid var(--navy); border-radius: 12px; overflow: hidden;
+.rough-area { flex: 1; min-height: 0; position: relative; display: flex; }
+/* the page scrolls (it grows as the kid writes); the canvas stays on the visible part and is redrawn on scroll */
+.rough-page { flex: 1; min-height: 0; position: relative; border: 3px solid var(--navy); border-radius: 12px; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior: contain;
   background-color: #fffdf6;
   background-image: linear-gradient(#e7ecf3 1px, transparent 1px), linear-gradient(90deg, #e7ecf3 1px, transparent 1px);
-  background-size: 28px 28px; }
-.rough-page canvas { position: absolute; inset: 0; touch-action: none; cursor: crosshair; display: block; }
+  background-size: 28px 28px; background-attachment: local; }
+.rough-page canvas { position: sticky; top: 0; touch-action: none; cursor: crosshair; display: block; }
+.rough-spacer { pointer-events: none; }
+.rough-scroll { position: absolute; right: 14px; bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+.rough-scroll button { width: 46px; height: 46px; border-radius: 50%; border: 3px solid var(--navy); background: var(--yellow); color: var(--navy); font: 700 18px var(--sans); box-shadow: 0 3px 0 var(--navy); }
+.rough-scroll button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--navy); }
+.rough-scroll button:disabled { opacity: .35; }
+.rough-hint-btn { background: var(--yellow); }
+.rough-hint { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: min(92%, 640px); text-align: left; background: var(--yellow); border: 3px solid var(--gold-dk); border-radius: 14px; padding: 12px 16px; font: 500 18px/1.4 var(--sans); color: var(--navy); box-shadow: 0 6px 18px rgba(0,0,0,.18); }
+.rough-hint b { font-family: var(--slab); }
+.earlier-hints { align-self: stretch; }
+.earlier-hints ol { margin: 6px 0 0; padding-left: 22px; display: grid; gap: 6px; font: 500 calc(17px * var(--ps, 1))/1.4 var(--sans); color: var(--navy); }
 .rough-page canvas.erasing { cursor: cell; }
 .rough-thumb { border: 2px solid var(--silver); border-radius: 10px; background: #fffdf6; padding: 4px; align-self: flex-start; max-width: 100%; overflow: hidden; }
 .rough-thumb.none { display: none; }

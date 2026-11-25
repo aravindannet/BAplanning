@@ -10,6 +10,10 @@ const COLORS = [
 const WIDTHS = [{ w: 2.2, name: 'Thin' }, { w: 4.5, name: 'Thick' }];
 const SAVE_DELAY = 1500;
 const KEEPALIVE_LIMIT = 60_000; // browsers refuse keepalive bodies over 64 KB; the local copy covers bigger pages
+const MAX_Y = 4.9; // the page can grow to 4.9 page-widths tall (the server accepts up to 5)
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+/** Lowest point of any stroke, in page-width units. */
+const lowest = (strokes: Stroke[]) => strokes.reduce((m, s) => { for (let i = 1; i < s.p.length; i += 3) if (s.p[i] > m) m = s.p[i]; return m; }, 0);
 
 const localKey = (id: string) => `ba.scratch.${id}`;
 const readLocal = (id: string): ScratchData | null => {
@@ -61,7 +65,7 @@ type Action = { add: Stroke } | { erased: { i: number; s: Stroke }[] };
  * the page, fingers no longer draw (palm rejection). Every change is kept on the iPad at once and saved to
  * the server shortly after, and again when the page is closed or hidden. Nothing ever clears the page.
  */
-export function RoughNote({ level, chapter, n, onBack }: { level: number; chapter: number; n: number; onBack: () => void }) {
+export function RoughNote({ level, chapter, n, hint, onBack }: { level: number; chapter: number; n: number; hint?: string; onBack: () => void }) {
   const id = `${level}-c${chapter}-${n}`;
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -77,7 +81,14 @@ export function RoughNote({ level, chapter, n, onBack }: { level: number; chapte
   const drawing = useRef<{ id: number; s: Stroke | null } | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const dirty = useRef(false);
-  const size = useRef({ w: 0, h: 0 });
+  const size = useRef({ w: 0, h: 0 }); // the visible part of the page
+  // The page is taller than the screen and scrolls. The canvas only covers the visible part (a canvas the size
+  // of the whole page would be too big for iPad Safari) and is redrawn shifted by the scroll position.
+  const [pageH, setPageH] = useState(0);
+  const [edge, setEdge] = useState({ top: true, bottom: true });
+  const [showHint, setShowHint] = useState(false);
+  const touches = useRef(new Map<number, number>()); // finger id -> last y, for finger scrolling
+  const scrolling = useRef(false);
 
   const redraw = useCallback(() => {
     const cv = canvas.current;
@@ -86,28 +97,63 @@ export function RoughNote({ level, chapter, n, onBack }: { level: number; chapte
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, size.current.w, size.current.h);
+    ctx.translate(0, -(wrap.current?.scrollTop ?? 0));
     paint(ctx, strokes.current, size.current.w);
   }, []);
 
-  // size the canvas to the page (sharp on retina)
+  // always a blank screen of room below the lowest stroke (up to the page limit)
+  const grow = useCallback(() => {
+    const { w, h } = size.current;
+    if (!w) return;
+    setPageH(Math.round(Math.min(MAX_Y * w, Math.max(h, lowest(strokes.current) * w + h))));
+  }, []);
+
+  const onScroll = useCallback(() => {
+    const el = wrap.current;
+    if (!el) return;
+    redraw();
+    setEdge({ top: el.scrollTop <= 1, bottom: el.scrollTop + el.clientHeight >= el.scrollHeight - 1 });
+  }, [redraw]);
+  useLayoutEffect(onScroll, [pageH, onScroll]);
+
+  // size the canvas to the visible page (sharp on retina)
   useLayoutEffect(() => {
     const el = wrap.current, cv = canvas.current;
     if (!el || !cv) return;
     const fit = () => {
-      const r = el.getBoundingClientRect();
+      const w = el.clientWidth, h = el.clientHeight;
       const dpr = window.devicePixelRatio || 1;
-      size.current = { w: r.width, h: r.height };
-      cv.width = Math.round(r.width * dpr);
-      cv.height = Math.round(r.height * dpr);
-      cv.style.width = `${r.width}px`;
-      cv.style.height = `${r.height}px`;
+      size.current = { w, h };
+      cv.width = Math.round(w * dpr);
+      cv.height = Math.round(h * dpr);
+      cv.style.width = `${w}px`;
+      cv.style.height = `${h}px`;
+      grow();
       redraw();
     };
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [redraw]);
+  }, [redraw, grow]);
+
+  const scrollBy = (dy: number) => wrap.current?.scrollBy({ top: dy, behavior: 'smooth' });
+
+  // iPad Safari starts a text selection / magnifier on a long press unless the touch itself is cancelled.
+  // (React's touch listeners are passive, so this one is added by hand.) Pointer events still fire.
+  useEffect(() => {
+    const cv = canvas.current;
+    if (!cv) return;
+    const stop = (e: Event) => e.preventDefault();
+    cv.addEventListener('touchstart', stop, { passive: false });
+    cv.addEventListener('touchmove', stop, { passive: false });
+    document.addEventListener('selectstart', stop);
+    return () => {
+      cv.removeEventListener('touchstart', stop);
+      cv.removeEventListener('touchmove', stop);
+      document.removeEventListener('selectstart', stop);
+    };
+  }, []);
 
   const push = useCallback(
     async (keepalive = false) => {
@@ -139,6 +185,7 @@ export function RoughNote({ level, chapter, n, onBack }: { level: number; chapte
         const best = newer(server && server.updatedAt ? server : null, local);
         strokes.current = best?.strokes ?? [];
         updatedAt.current = best?.updatedAt ?? 0;
+        grow();
         redraw();
         if (best && best === local && (!server || local!.updatedAt > server.updatedAt)) {
           dirty.current = true;
@@ -148,16 +195,17 @@ export function RoughNote({ level, chapter, n, onBack }: { level: number; chapte
     return () => {
       live = false;
     };
-  }, [id, level, chapter, n, redraw, push]);
+  }, [id, level, chapter, n, redraw, grow, push]);
 
   const changed = useCallback(() => {
     updatedAt.current = Math.max(Date.now(), updatedAt.current + 1);
     dirty.current = true;
+    grow();
     writeLocal(id, { strokes: strokes.current, updatedAt: updatedAt.current });
     setStatus('saving');
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => void push(), SAVE_DELAY);
-  }, [id, push]);
+  }, [id, push, grow]);
 
   // save straight away when the page is hidden (app switch, lock) or the note is closed
   useEffect(() => {
@@ -176,7 +224,9 @@ export function RoughNote({ level, chapter, n, onBack }: { level: number; chapte
     const r = canvas.current!.getBoundingClientRect();
     const w = size.current.w || 1;
     const pressure = e.pointerType === 'pen' ? e.pressure || 0.5 : 0.5;
-    return [(e.clientX - r.left) / w, (e.clientY - r.top) / w, pressure];
+    const top = wrap.current?.scrollTop ?? 0;
+    // clamped: a point dragged off the page would make the server refuse the whole save
+    return [clamp((e.clientX - r.left) / w, 0, 1), clamp((e.clientY - r.top + top) / w, 0, MAX_Y), pressure];
   };
 
   const eraseAt = (x: number, y: number) => {
@@ -200,16 +250,33 @@ export function RoughNote({ level, chapter, n, onBack }: { level: number; chapte
     }
   };
 
-  const down = (e: React.PointerEvent) => {
-    if (e.pointerType === 'pen') penSeen.current = true;
-    else if (e.pointerType === 'touch' && penSeen.current) return; // palm / finger while using a pencil
-    if (drawing.current) return;
-    e.preventDefault();
+  const capture = (e: React.PointerEvent) => {
     try {
       canvas.current!.setPointerCapture(e.pointerId);
     } catch {
       /* not a real pointer (tests) */
     }
+  };
+  const down = (e: React.PointerEvent) => {
+    if (e.pointerType === 'pen') penSeen.current = true;
+    else if (e.pointerType === 'touch') {
+      // Fingers scroll: one finger once a pencil has been used (palm rejection), otherwise two fingers.
+      touches.current.set(e.pointerId, e.clientY);
+      if (penSeen.current || touches.current.size >= 2) {
+        e.preventDefault();
+        capture(e);
+        const d = drawing.current;
+        if (d && d.s && d.id !== e.pointerId) {
+          drawing.current = null; // the first finger had started a line: it was the start of a scroll
+          redraw();
+        }
+        scrolling.current = true;
+        return;
+      }
+    }
+    if (drawing.current) return;
+    e.preventDefault();
+    capture(e);
     const [x, y, pr] = pos(e);
     if (tool === 'eraser') {
       drawing.current = { id: e.pointerId, s: null };
@@ -223,6 +290,14 @@ export function RoughNote({ level, chapter, n, onBack }: { level: number; chapte
     drawStroke(ctx, s, size.current.w, 0);
   };
   const move = (e: React.PointerEvent) => {
+    const t = touches.current;
+    if (scrolling.current && t.has(e.pointerId)) {
+      const dy = e.clientY - t.get(e.pointerId)!;
+      t.set(e.pointerId, e.clientY);
+      if (wrap.current) wrap.current.scrollTop -= dy / t.size;
+      return;
+    }
+    if (t.has(e.pointerId)) t.set(e.pointerId, e.clientY);
     const d = drawing.current;
     if (!d || d.id !== e.pointerId) return;
     const events = (e.nativeEvent as PointerEvent).getCoalescedEvents?.() ?? [e.nativeEvent];
@@ -240,6 +315,7 @@ export function RoughNote({ level, chapter, n, onBack }: { level: number; chapte
     }
   };
   const up = (e: React.PointerEvent) => {
+    if (touches.current.delete(e.pointerId) && touches.current.size === 0) scrolling.current = false;
     const d = drawing.current;
     if (!d || d.id !== e.pointerId) return;
     drawing.current = null;
@@ -287,17 +363,32 @@ export function RoughNote({ level, chapter, n, onBack }: { level: number; chapte
         <span className={`rough-status rs-${status}`} aria-live="polite">
           {status === 'saved' ? 'Saved ✓' : status === 'saving' ? 'Saving…' : status === 'local' ? 'Saved on this device' : 'Loading…'}
         </span>
+        {hint && (
+          <button type="button" className={`rt rough-hint-btn${showHint ? ' on' : ''}`} aria-expanded={showHint} onClick={() => setShowHint((v) => !v)}>💡 Hint</button>
+        )}
       </div>
-      <div className="rough-page" ref={wrap}>
-        <canvas
-          ref={canvas}
-          className={tool === 'eraser' ? 'erasing' : ''}
-          onPointerDown={down}
-          onPointerMove={move}
-          onPointerUp={up}
-          onPointerCancel={up}
-          aria-label="Rough note page. Draw here."
-        />
+      <div className="rough-area">
+        <div className="rough-page" ref={wrap} onScroll={onScroll}>
+          <canvas
+            ref={canvas}
+            className={tool === 'eraser' ? 'erasing' : ''}
+            onPointerDown={down}
+            onPointerMove={move}
+            onPointerUp={up}
+            onPointerCancel={up}
+            aria-label="Rough note page. Draw here."
+          />
+          <div className="rough-spacer" style={{ height: Math.max(0, pageH - size.current.h) }} />
+        </div>
+        <div className="rough-scroll">
+          <button type="button" aria-label="Scroll up" disabled={edge.top} onClick={() => scrollBy(-size.current.h * 0.8)}>▲</button>
+          <button type="button" aria-label="More paper below" disabled={edge.bottom} onClick={() => scrollBy(size.current.h * 0.8)}>▼</button>
+        </div>
+        {hint && showHint && (
+          <button type="button" className="rough-hint" onClick={() => setShowHint(false)} aria-label="Hint. Tap to close.">
+            <b>💡 Hint</b> {hint}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -316,9 +407,9 @@ export function RoughThumb({ level, chapter, n }: { level: number; chapter: numb
         const best = newer(server && server.updatedAt ? server : null, local);
         if (!live || !best?.strokes.length || !cv.current) return;
         setHas(true);
-        const W = 360;
-        const maxY = Math.max(0.4, ...best.strokes.flatMap((s) => s.p.filter((_, i) => i % 3 === 1))) + 0.03;
-        const H = Math.min(480, Math.round(W * maxY));
+        const maxY = Math.max(0.4, lowest(best.strokes)) + 0.03;
+        const W = Math.round(360 * Math.min(1, 480 / (360 * maxY))); // a tall page is shrunk to fit, not cut off
+        const H = Math.round(W * maxY);
         const dpr = window.devicePixelRatio || 1;
         cv.current.width = W * dpr;
         cv.current.height = H * dpr;

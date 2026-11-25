@@ -57,6 +57,12 @@ export interface ProblemView {
   hasBookHint?: boolean;
   solved: boolean;
   attempts: number;
+  hints?: GivenHint[]; // hints already given for this (unsolved) problem, oldest first
+}
+export interface GivenHint {
+  hint: string;
+  hintFrom?: 'book' | 'ai';
+  at: string;
 }
 export interface CheckResult {
   correct: boolean;
