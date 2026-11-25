@@ -2,7 +2,7 @@
 // hints follow the book's way of thinking instead of the model's own.
 import { problemImagesCol, type ProblemDoc } from './_mongo';
 
-const MODEL = 'claude-haiku-4-5-20251001';
+const MODEL = 'claude-haiku-5-5';
 
 const SYSTEM = `You are a friendly Beast Academy tutor helping a child (about age 9-10) who answered a practice problem wrong twice.
 You are given the problem and the OFFICIAL Beast Academy solution.
@@ -39,7 +39,8 @@ export async function makeHint(p: ProblemDoc, wrongAnswer: string): Promise<{ hi
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: MODEL, max_tokens: 220, system: SYSTEM, messages: [{ role: 'user', content }] }),
+      // Haiku 5.5 reasons by default (billed as output); a short hint doesn't need it, and it could use up max_tokens.
+      body: JSON.stringify({ model: MODEL, max_tokens: 220, thinking: { type: 'disabled' }, system: SYSTEM, messages: [{ role: 'user', content }] }),
       signal: AbortSignal.timeout(20000),
     });
     if (!res.ok) {
