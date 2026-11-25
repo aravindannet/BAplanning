@@ -22,7 +22,9 @@ async function getClient(): Promise<MongoClient> {
   const uri = process.env.MONGODB_URI;
   if (!uri) throw new Error('MONGODB_URI is not configured');
   if (!clientPromise) {
-    clientPromise = new MongoClient(uri, { maxPoolSize: 5 }).connect().catch((err) => {
+    // Free-tier Atlas caps at 500 connections shared by every app on the cluster, and frozen function
+    // containers keep their sockets open. Keep each container to a single pooled connection and drop idle ones.
+    clientPromise = new MongoClient(uri, { maxPoolSize: 1, minPoolSize: 0, maxIdleTimeMS: 10_000, appName: 'beast-academy' }).connect().catch((err) => {
       clientPromise = null;
       throw err;
     });
