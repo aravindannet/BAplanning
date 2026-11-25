@@ -41,9 +41,47 @@ function items(raw: string): string[] {
   return parts;
 }
 
+const SUP: Record<string, string> = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' };
+const primeQ = (n: number) => { if (n < 2) return false; for (let d = 2; d * d <= n; d++) if (n % d === 0) return false; return true; };
+
+/** "2^2×3×5", "2²·3·5", "2x2x3x5" -> sorted prime powers "2^2*3^1*5^1"; null if it isn't a product of primes. */
+export function primeFactorKey(raw: string): string | null {
+  let s = raw.trim().replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, (m) => '^' + [...m].map((c) => SUP[c]).join(''));
+  s = s.replace(/\s+/g, '').replace(/[×xX·*]/g, '*');
+  if (!/^\d+(\^\d+)?(\*\d+(\^\d+)?)*$/.test(s)) return null;
+  const pow = new Map<number, number>();
+  for (const term of s.split('*')) {
+    const [b, e = '1'] = term.split('^');
+    const base = Number(b), exp = Number(e);
+    if (!primeQ(base) || exp < 1) return null;
+    pow.set(base, (pow.get(base) ?? 0) + exp);
+  }
+  return [...pow].sort((a, b) => a[0] - b[0]).map(([b, e]) => `${b}^${e}`).join('*');
+}
+const looksLikeFactorization = (a: string) => /[×*^⁰¹²³⁴⁵⁶⁷⁸⁹]/.test(a) && primeFactorKey(a) !== null;
+
+/** "1×30, 2×15" -> "1,30|2,15" (sorted); null unless every item is a pair of whole numbers. */
+export function pairListKey(raw: string): string | null {
+  const items = raw.split(/[,;]/).map((t) => t.trim()).filter(Boolean);
+  if (items.length < 1) return null;
+  const pairs: string[] = [];
+  for (const it of items) {
+    const m = it.match(/^(\d+)\s*(?:[×xX*&]|and)\s*(\d+)$/);
+    if (!m) return null;
+    pairs.push([Number(m[1]), Number(m[2])].sort((a, b) => a - b).join(','));
+  }
+  return pairs.sort().join('|');
+}
+
 export function checkAnswer(input: string, accepted: string[]): boolean {
   const given = input.trim();
   if (!given) return false;
+  // prime factorizations: any order, with or without exponents, but every base must be prime
+  for (const a of accepted) if (looksLikeFactorization(a) && primeFactorKey(given) === primeFactorKey(a)) return true;
+  if (accepted.length && accepted.every(looksLikeFactorization)) return false;
+  // lists of pairs ("1×30, 2×15" or "13 & 31, 17 & 71"): any order, either way round
+  for (const a of accepted) { const k = pairListKey(a); if (k && pairListKey(given) === k) return true; }
+  if (accepted.length && accepted.every((a) => pairListKey(a))) return false;
   const gc = canon(given);
   if (accepted.some((a) => canon(a) === gc)) return true;
   // a number followed by plain words ("55 pairs", "35 buses") counts when the answer is that number

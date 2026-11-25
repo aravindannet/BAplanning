@@ -81,7 +81,7 @@ export interface ProblemDoc {
   prompt: string;
   /** text (typed answers, the default) | puzzle (an interactive board) | explain (written reasoning, judged by the AI) */
   kind?: 'text' | 'puzzle' | 'explain';
-  parts: { label: string; answer: string; accepted: string[]; choices?: string[] }[]; // answers never sent to the browser
+  parts: { label: string; answer: string; accepted: string[]; choices?: string[]; multi?: boolean }[]; // answers never sent to the browser
   puzzle?: PuzzleSpec; // the board layout (public)
   puzzleSolution?: Cells; // never sent to the browser
   bookHint?: string; // the book's own hint (★ problems), shown before any AI hint
@@ -121,3 +121,11 @@ export async function getDb(): Promise<Db> {
 export const problemsCol = async (): Promise<Collection<ProblemDoc>> => (await getDb()).collection<ProblemDoc>('problems');
 export const problemImagesCol = async (): Promise<Collection<ProblemImageDoc>> => (await getDb()).collection<ProblemImageDoc>('problem_images');
 export const problemStateCol = async (): Promise<Collection<ProblemStateDoc>> => (await getDb()).collection<ProblemStateDoc>('problem_state');
+
+/** A rough-note page for one problem: strokes scaled to the page width (see _scratch.ts). */
+export interface ScratchDoc {
+  _id: string; // `${level}-c${chapter}-${n}`
+  strokes: { c: string; w: number; p: number[] }[];
+  updatedAt: number;
+}
+export const scratchCol = async (): Promise<Collection<ScratchDoc>> => (await getDb()).collection<ScratchDoc>('scratch');

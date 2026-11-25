@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <pattern id="argyle" width="84" height="130" patternUnits="userSpaceOnUse">
+      <path d="M0 0L84 130M84 0L0 130" stroke="#fff3c8" stroke-opacity=".55" stroke-width="4" fill="none"/>
+    </pattern>
+    <radialGradient id="glow" cx=".5" cy=".42" r=".55">
+      <stop offset="0" stop-color="#fff6cf"/>
+      <stop offset="1" stop-color="#fff6cf" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="#edb040"/>
+  <rect width="512" height="512" fill="url(#argyle)"/>
+  <circle cx="256" cy="236" r="230" fill="url(#glow)"/>
+  <!-- the friendly beast (same character as in the app) -->
+  <g transform="translate(96 140) scale(2.67)" stroke-linecap="round">
+    <path d="M30 26 Q34 2 46 -14" fill="none" stroke="#1E2A3A" stroke-width="4"/>
+    <path d="M94 26 Q90 2 78 -14" fill="none" stroke="#1E2A3A" stroke-width="4"/>
+    <circle cx="23" cy="-19" r="11" fill="#F7C948" stroke="#1E2A3A" stroke-width="3"/>
+    <circle cx="97" cy="-19" r="11" fill="#F7C948" stroke="#1E2A3A" stroke-width="3"/>
+    <ellipse cx="60" cy="74" rx="52" ry="54" fill="#F06AA8" stroke="#1E2A3A" stroke-width="4"/>
+    <ellipse cx="60" cy="96" rx="32" ry="26" fill="#FBD3E6" stroke="#1E2A3A" stroke-width="3"/>
+    <ellipse cx="40" cy="57" rx="16" ry="19" fill="#fff" stroke="#1E2A3A" stroke-width="3"/>
+    <ellipse cx="80" cy="57" rx="16" ry="19" fill="#fff" stroke="#1E2A3A" stroke-width="3"/>
+    <ellipse cx="41" cy="61" rx="7" ry="9" fill="#1E2A3A"/>
+    <ellipse cx="79" cy="61" rx="7" ry="9" fill="#1E2A3A"/>
+    <circle cx="40.5" cy="58" r="2.5" fill="#fff"/>
+    <circle cx="78.5" cy="58" r="2.5" fill="#fff"/>
+    <path d="M46 86 Q60 102 74 86" fill="none" stroke="#1E2A3A" stroke-width="4"/>
+    <ellipse cx="24" cy="83" rx="8" ry="4.5" fill="#FF8FB8"/>
+    <ellipse cx="96" cy="83" rx="8" ry="4.5" fill="#FF8FB8"/>
+  </g>
+  <!-- banner -->
+  <rect x="106" y="412" width="300" height="60" rx="14" fill="#2955a5" stroke="#1E2A3A" stroke-width="6"/>
+  <text x="256" y="455" text-anchor="middle" font-family="Georgia, 'Roboto Slab', serif" font-weight="700" font-size="38" fill="#fff" letter-spacing="2">MATH</text>
+</svg>

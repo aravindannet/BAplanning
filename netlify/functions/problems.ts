@@ -109,7 +109,7 @@ export default withMongo(async (req: Request): Promise<Response> => {
       prompt: p.prompt,
       images: p.images.question,
       kind: p.kind ?? 'text',
-      parts: p.parts.map((x) => ({ label: x.label, ...(x.choices ? { choices: x.choices } : {}) })),
+      parts: p.parts.map((x) => ({ label: x.label, ...(x.choices ? { choices: x.choices } : {}), ...(x.multi ? { multi: true } : {}) })),
       ...(p.puzzle ? { puzzle: p.puzzle } : {}),
       hasBookHint: Boolean(p.bookHint),
       solved: st?.solved ?? false,
@@ -147,7 +147,7 @@ export default withMongo(async (req: Request): Promise<Response> => {
 
     const kind = p.kind ?? 'text';
     const answers = Object.fromEntries(Object.entries(body.answers ?? {}).map(([k, v]) => [k, String(v).slice(0, kind === 'explain' ? 1000 : 200)]));
-    const cells: Cells = Object.fromEntries(Object.entries(body.cells ?? {}).slice(0, 200).map(([k, v]) => [String(k).slice(0, 8), String(v).slice(0, 2)]));
+    const cells: Cells = Object.fromEntries(Object.entries(body.cells ?? {}).slice(0, 200).map(([k, v]) => [String(k).slice(0, 8), String(v).slice(0, 5)]));
     let results: { label: string; ok: boolean }[] = [];
     let correct: boolean;
     let feedback: string | undefined; // the AI's nudge for a written explanation that isn't there yet

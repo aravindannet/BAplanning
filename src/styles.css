@@ -423,3 +423,72 @@ textarea.explain { flex: 1; font: 500 20px/1.4 var(--sans); padding: 12px 14px; 
 .dialog.problem .pz-logic .lc-head span, .dialog.problem .pz-logic .lc-row { font-size: calc(16px * var(--ps)); }
 .dialog.problem .problem-win h3 { font-size: calc(40px * var(--ps)); }
 .dialog.problem .win-stars svg { width: calc(var(--sz, 56px) * var(--ps)); height: auto; }
+
+/* ---------- Chapter 7 boards (FactorBoards.tsx) ---------- */
+.pz-target { font: 700 calc(22px * var(--ps, 1)) var(--slab); color: var(--brick); }
+.pz-target b { color: var(--navy); }
+.pz-cell.blob { --n: 4; }
+.pz-cell.blob.in { color: var(--navy); }
+.pz-cell.blob.sel { background: #fff3c2; box-shadow: inset 0 0 0 4px var(--gold-dk); }
+.pz-blobs .pz-cell.bt { border-top: 4px solid var(--navy); } .pz-blobs .pz-cell.bb { border-bottom: 4px solid var(--navy); }
+.pz-blobs .pz-cell.bl { border-left: 4px solid var(--navy); } .pz-blobs .pz-cell.br { border-right: 4px solid var(--navy); }
+.blob-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.dialog.problem .bn.blob-make { height: calc(46px * var(--ps, 1)); font-size: calc(17px * var(--ps, 1)); padding: 0 18px; }
+.pyr { display: flex; flex-direction: column; align-items: center; }
+.pyr-row { display: flex; }
+.pyr-cell { --cs: min(calc(58px * var(--ps, 1)), calc((100vw - 120px) / 6)); width: auto; min-width: var(--cs); padding: 0 6px; border: 2px solid var(--navy); margin: -1px; font-size: calc(var(--cs) * .4); }
+.pyr-cell.on { background: var(--yellow); box-shadow: inset 0 0 0 3px var(--gold-dk); border-radius: 50%; }
+.pz-times .pz-cell.tt { border: 2px solid var(--navy); margin: -1px; font-size: calc(var(--cs) * .38); }
+.pz-times .pz-cell.head { background: #e8eef9; }
+.pz-times .pz-cell.head.given { background: #e8eef9; }
+.pz-times .tt-corner { --cs: min(calc(64px * var(--ps, 1)), calc((100vw - 120px) / var(--n, 5))); background: #c9d3e3; border: 2px solid var(--navy); margin: -1px; font: 700 calc(var(--cs) * .45) var(--sans); color: var(--navy); }
+.numpad.digits .numkey { width: calc(52px * var(--ps, 1)); }
+.sieve { display: grid; grid-template-columns: repeat(10, 1fr); border: 3px solid var(--navy); border-radius: 6px; background: var(--navy); gap: 1px; }
+.sv-cell { width: calc(44px * var(--ps, 1)); height: calc(38px * var(--ps, 1)); display: grid; place-items: center; background: #fffdf6; font: 700 calc(16px * var(--ps, 1)) var(--sans); color: var(--navy); padding: 0; position: relative; }
+.sv-cell.empty { background: #f1ece0; }
+.sv-cell.circ { background: #fff3c2; }
+.sv-cell.circ::after { content: ''; position: absolute; inset: 3px 6px; border: 3px solid var(--green-dk); border-radius: 50%; }
+.sv-cell.cross { color: #9aa4b2; text-decoration: line-through; text-decoration-thickness: 3px; text-decoration-color: var(--brick); }
+.choices.multi .choice { min-width: calc(56px * var(--ps, 1)); }
+
+/* ---------- rough-note page (RoughNote.tsx): the problem window flips over like a card ---------- */
+.face-front { display: contents; }
+.dialog.problem.flip-out { animation: card-out .19s ease-in both; }
+.dialog.problem.flip-in { animation: card-in .19s ease-out both; }
+@keyframes card-out { from { transform: perspective(1400px) rotateY(0); } to { transform: perspective(1400px) rotateY(90deg); } }
+@keyframes card-in { from { transform: perspective(1400px) rotateY(-90deg); } to { transform: perspective(1400px) rotateY(0); } }
+@media (prefers-reduced-motion: reduce) { .dialog.problem.flip-out, .dialog.problem.flip-in { animation: none; } }
+.rough-open { margin-left: auto; margin-right: 44px; background: var(--yellow); color: var(--navy); border: 3px solid var(--navy); border-radius: 999px; padding: 6px 16px; font: 700 calc(17px * var(--ps, 1)) var(--slab); box-shadow: 0 3px 0 var(--navy); }
+.rough-open:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--navy); }
+.dialog.problem.notes { height: calc(100dvh - 60px); padding: 14px; overflow: hidden; }
+@media (hover: none) and (pointer: coarse) { .dialog.problem.notes { height: calc(100dvh - 24px); } }
+.rough { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+.rough-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rough-back { background: var(--blue); color: #fff; border: 3px solid var(--navy); border-radius: 12px; padding: 8px 14px; font: 700 17px var(--slab); box-shadow: 0 3px 0 var(--navy); }
+.rough-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rt { min-height: 44px; padding: 0 12px; border-radius: 12px; border: 3px solid var(--blue-border); background: #fff; font: 700 15px var(--sans); color: var(--navy); }
+.rt.on { background: var(--yellow); border-color: var(--gold-dk); }
+.rt:disabled { opacity: .4; }
+.rt-sep { width: 2px; height: 30px; background: var(--silver); margin: 0 4px; }
+.rt-color { width: 36px; height: 36px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 2px var(--silver); }
+.rt-color.on { box-shadow: 0 0 0 3px var(--gold-dk); }
+.rt-width { width: 40px; height: 40px; border-radius: 10px; border: 3px solid var(--silver); background: #fff; display: grid; place-items: center; }
+.rt-width span { display: block; width: 22px; background: var(--navy); border-radius: 4px; }
+.rt-width.on { border-color: var(--gold-dk); background: #fff3c2; }
+.rough-status { margin-left: auto; font: 600 14px var(--sans); color: var(--muted); }
+.rough-status.rs-saved { color: var(--green-dk); }
+.rough-status.rs-local { color: var(--brick); }
+.rough-page { flex: 1; min-height: 0; position: relative; border: 3px solid var(--navy); border-radius: 12px; overflow: hidden;
+  background-color: #fffdf6;
+  background-image: linear-gradient(#e7ecf3 1px, transparent 1px), linear-gradient(90deg, #e7ecf3 1px, transparent 1px);
+  background-size: 28px 28px; }
+.rough-page canvas { position: absolute; inset: 0; touch-action: none; cursor: crosshair; display: block; }
+.rough-page canvas.erasing { cursor: cell; }
+.rough-thumb { border: 2px solid var(--silver); border-radius: 10px; background: #fffdf6; padding: 4px; align-self: flex-start; max-width: 100%; overflow: hidden; }
+.rough-thumb.none { display: none; }
+.rough-thumb canvas { display: block; max-width: 100%; height: auto; }
+.rough-thumb-wrap { display: flex; flex-direction: column; gap: 6px; }
+.review .rough-thumb-wrap h4 { margin: 8px 0 0; font: 700 14px var(--slab); text-transform: uppercase; letter-spacing: .06em; color: var(--blue); }
+.dialog.problem.settled { animation: none; }
+.dialog.problem.settled.flip-out { animation: card-out .19s ease-in both; }
+.dialog.problem.settled.flip-in { animation: card-in .19s ease-out both; }

@@ -4,6 +4,7 @@ import { Beast, Medal, Star } from './icons';
 import { Confetti } from './CompleteDialog';
 import { PuzzleBoard } from './puzzles/PuzzleBoard';
 import { ChoicePicker } from './puzzles/ChoicePicker';
+import { RoughNote, RoughThumb } from './RoughNote';
 import type { Cells } from '../../netlify/functions/_puzzle';
 
 interface Props {
@@ -48,6 +49,20 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   const dlg = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState(0);
   const [fitEpoch, setFitEpoch] = useState(0);
+  // rough-note page: the window flips over like a card
+  const [notes, setNotes] = useState(false);
+  const [flip, setFlip] = useState<'out' | 'in' | null>(null);
+  const [flipped, setFlipped] = useState(false); // after the first flip, the opening animation must not replay
+  const flipTo = (show: boolean) => {
+    if (flip) return;
+    setFlip('out');
+    setFlipped(true);
+    window.setTimeout(() => {
+      setNotes(show);
+      setFlip('in');
+      window.setTimeout(() => setFlip(null), 190);
+    }, 190);
+  };
   const [justSolved, setJustSolved] = useState(false); // confetti only for a fresh solve, not when re-opening
   const [showReview, setShowReview] = useState(false);
   const [review, setReview] = useState<Review | null>(null);
@@ -104,7 +119,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   }, [p?.n, solved, shake]);
 
   const SCALES = [1, 0.92, 0.85, 0.78, 0.72, 0.66, 0.6, 0.55];
-  const contentKey = `${p?.n}|${solved}|${Boolean(hint)}|${msg ?? ''}|${showReview}|${wrongParts.size}`;
+  const contentKey = `${p?.n}|${solved}|${Boolean(hint)}|${msg ?? ''}|${showReview}|${wrongParts.size}|${notes}`;
   useEffect(() => {
     setFit(0);
     setFitEpoch((e) => e + 1);
@@ -119,9 +134,9 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   }, []);
   useLayoutEffect(() => {
     const el = dlg.current;
-    if (!el || (solved && showReview)) return;
+    if (!el || notes || (solved && showReview)) return;
     if (el.scrollHeight > el.clientHeight + 1 && fit < SCALES.length - 1) setFit(fit + 1);
-  }, [fit, fitEpoch, solved, showReview]);
+  }, [fit, fitEpoch, solved, showReview, notes]);
 
   const idx = list.findIndex((x) => x.n === n);
   const next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
@@ -161,12 +176,15 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
 
   return (
     <div className="overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={`Problem ${n}`}>
-      <div ref={dlg} className={`dialog problem${solved && showReview ? ' scrolls' : ''}`} style={{ ['--ps' as string]: SCALES[fit] }} onClick={(e) => e.stopPropagation()}>
+      <div ref={dlg} className={`dialog problem${solved && showReview && !notes ? ' scrolls' : ''}${notes ? ' notes' : ''}${flip ? ` flip-${flip}` : ''}${flipped ? ' settled' : ''}`} style={{ ['--ps' as string]: SCALES[fit] }} onClick={(e) => e.stopPropagation()}>
+        {notes && <RoughNote level={level} chapter={chapter} n={n} onBack={() => flipTo(false)} />}
+        <div className="face-front" style={notes ? { display: 'none' } : undefined}>
         {solved && justSolved && <Confetti />}
         <button className="x-close" aria-label="Close" onClick={onClose}>{'✕'}</button>
         <div className="problem-head">
           <span className="coin big"><Medal n={n} kind={solved ? 'green' : 'gold'} /></span>
           <span className="problem-src">{p?.book ? `Book ${p.book}` : ''}{p?.page ? ` · page ${p.page}` : ''}</span>
+          <button type="button" className="rough-open" onClick={() => flipTo(true)}>📝 Rough note</button>
         </div>
         {!p && !msg && <p className="what">Loading…</p>}
         {!p && msg && <p className="what">{msg}</p>}
@@ -174,7 +192,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
           <>
             <div className="problem-prompt">{p.prompt}</div>
             {p.images.map((id) => (
-              <img key={id} className="problem-img" src={problemImageUrl(id)} alt="Problem picture" />
+              <img key={id} className="problem-img" src={problemImageUrl(id)} alt="Problem picture" onLoad={() => { setFit(0); setFitEpoch((e) => e + 1); }} />
             ))}
             {solved ? (
               <div className="problem-win">
@@ -220,6 +238,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                             <p className="parent-ans">{review.answer}</p>
                           </>
                         )}
+                        <RoughThumb level={level} chapter={chapter} n={n} />
                         <h4>Solution</h4>
                         <p className="parent-sol">{review.solution}</p>
                         {review.solutionImages.map((id) => <img key={id} className="problem-img" src={solutionImageUrl(id)} alt="Solution" />)}
@@ -241,7 +260,22 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                 {p.parts.map((part, i) => (
                   <div key={part.label} className={`answer-row${wrongParts.has(part.label) ? ' bad' : ''}`}>
                     {(p.parts.length > 1 || p.puzzle?.type === 'logicgrid') && <span className="part-label">{part.label}</span>}
-                    {part.choices && asButtons(part.choices) ? (
+                    {part.choices && part.multi ? (
+                      <div className="choices multi" role="group" aria-label={part.label}>
+                        {part.choices.map((c) => {
+                          const on = (answers[part.label] ?? '').split(', ').includes(c);
+                          return (
+                            <button key={c} type="button" aria-pressed={on} className={`choice${on ? ' on' : ''}`} onClick={() => {
+                              const cur = (answers[part.label] ?? '').split(', ').filter(Boolean);
+                              const next = on ? cur.filter((x) => x !== c) : [...cur, c];
+                              setAnswers({ ...answers, [part.label]: part.choices!.filter((x) => next.includes(x)).join(', ') });
+                            }}>
+                              {c}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : part.choices && asButtons(part.choices) ? (
                       <div className="choices" role="radiogroup" aria-label={part.label}>
                         {part.choices.map((c) => (
                           <button key={c} type="button" role="radio" aria-checked={answers[part.label] === c} className={`choice${answers[part.label] === c ? ' on' : ''}`} onClick={() => setAnswers({ ...answers, [part.label]: c })}>
@@ -286,6 +320,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
             )}
           </>
         )}
+        </div>
       </div>
     </div>
   );

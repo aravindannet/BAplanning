@@ -1,4 +1,5 @@
 import type { Cells, PuzzleSpec } from '../netlify/functions/_puzzle';
+import type { ScratchData } from '../netlify/functions/_scratch';
 const PIN_KEY = 'ba.pin';
 
 export const getPin = () => {
@@ -51,7 +52,7 @@ export interface ProblemView {
   prompt: string;
   images: string[];
   kind?: 'text' | 'puzzle' | 'explain';
-  parts: { label: string; choices?: string[] }[];
+  parts: { label: string; choices?: string[]; multi?: boolean }[];
   puzzle?: PuzzleSpec;
   hasBookHint?: boolean;
   solved: boolean;
@@ -91,3 +92,10 @@ export interface Review {
 export const fetchReview = (level: number, chapter: number, n: number) =>
   call<Review>(`/api/problems?level=${level}&chapter=${chapter}&n=${n}&review=1`);
 export const solutionImageUrl = problemImageUrl;
+
+// ---- rough notes ----
+export const fetchScratch = (level: number, chapter: number, n: number) =>
+  call<ScratchData>(`/api/scratch?level=${level}&chapter=${chapter}&n=${n}`);
+/** keepalive lets the last save finish even while the page is being hidden or closed. */
+export const saveScratch = (level: number, chapter: number, n: number, data: ScratchData, keepalive = false) =>
+  call<{ ok: true; updatedAt: number }>('/api/scratch', { method: 'PUT', body: JSON.stringify({ level, chapter, n, ...data }), keepalive });

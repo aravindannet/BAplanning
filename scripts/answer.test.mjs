@@ -50,3 +50,20 @@ test('a number followed by words matches a numeric answer', () => {
   assert.equal(checkAnswer('5 and 7', ['5']), false);
   assert.equal(checkAnswer('3 r 2', ['3']), false);
 });
+
+test('prime factorizations match in any form, but bases must be prime', () => {
+  assert.equal(checkAnswer('2^2×5×7', ['2²×5×7']), true);
+  assert.equal(checkAnswer('7x5x2x2', ['2²×5×7']), true);
+  assert.equal(checkAnswer('2 * 2 * 5 * 7', ['2²×5×7']), true);
+  assert.equal(checkAnswer('4×5×7', ['2²×5×7']), false);
+  assert.equal(checkAnswer('140', ['2²×5×7']), false);
+  assert.equal(checkAnswer('2^3×5×7', ['2²×5×7']), false);
+  assert.equal(checkAnswer('113', ['113']), true);
+});
+
+test('factor-pair lists match in any order and either way round', () => {
+  assert.equal(checkAnswer('30x1, 15x2, 3x10, 5x6', ['1×30, 2×15, 3×10, 5×6']), true);
+  assert.equal(checkAnswer('1×30, 2×15, 3×10', ['1×30, 2×15, 3×10, 5×6']), false);
+  assert.equal(checkAnswer('31 & 13, 17 & 71, 37 and 73, 97 & 79', ['13 & 31, 17 & 71, 37 & 73, 79 & 97']), true);
+  assert.equal(checkAnswer('1, 30, 2, 15', ['1×30, 2×15']), false);
+});

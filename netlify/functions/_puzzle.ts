@@ -15,7 +15,15 @@ export type PuzzleSpec =
   | { type: 'minesweeper'; rows: number; cols: number; clues: Record<string, number> }
   | { type: 'tents'; rows: number; cols: number; trees: string[] }
   | { type: 'hive'; hexes: Hex[]; givens: Cells; max: number; flat?: boolean }
-  | { type: 'logicgrid'; rowGroups: string[][]; colGroups: string[][] };
+  | { type: 'logicgrid'; rowGroups: string[][]; colGroups: string[][] }
+  /** Factor Blobs: group every number into connected blobs (2+ squares) whose product is `target`. Cells: "r,c" -> blob id. */
+  | { type: 'blobs'; nums: number[][]; target: number }
+  /** Pyramid Descent: one touching square per row, top to bottom, whose product is `target`. Cells: "r,c" -> "P". */
+  | { type: 'pyramid'; rows: number[][]; target: number }
+  /** Times Table: row 0 holds the column factors, column 0 the row factors; "0,0" is the × corner. */
+  | { type: 'timestable'; rows: number; cols: number; givens: Cells }
+  /** Sieve of Eratosthenes on from..to: circle ("O") every prime, cross ("X") every other number. Cells keyed by the number. */
+  | { type: 'sieve'; from: number; to: number };
 
 export const key = (r: number, c: number) => `${r},${c}`;
 export const unkey = (k: string) => k.split(',').map(Number) as [number, number];
@@ -68,7 +76,81 @@ export function editableCells(spec: PuzzleSpec): string[] {
       return spec.hexes.map((_, i) => String(i)).filter((k) => !spec.givens[k]);
     case 'logicgrid':
       return [];
+    case 'blobs':
+      return spec.nums.flatMap((row, r) => row.map((_, c) => key(r, c)));
+    case 'pyramid':
+      return spec.rows.flatMap((row, r) => row.map((_, c) => key(r, c)));
+    case 'timestable': {
+      const out: string[] = [];
+      for (let r = 0; r <= spec.rows; r++) for (let c = 0; c <= spec.cols; c++) if ((r || c) && !spec.givens[key(r, c)]) out.push(key(r, c));
+      return out;
+    }
+    case 'sieve':
+      return [...Array(spec.to - spec.from + 1)].map((_, i) => String(spec.from + i));
   }
+}
+
+export const isPrime = (n: number) => {
+  if (n < 2) return false;
+  for (let d = 2; d * d <= n; d++) if (n % d === 0) return false;
+  return true;
+};
+const prod = (xs: number[]) => xs.reduce((a, b) => a * b, 1);
+const orth = (r: number, c: number): [number, number][] => [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]];
+
+/** Blob groups on the kid's board: id -> cell keys. */
+function blobGroups(cells: Cells): Map<string, string[]> {
+  const m = new Map<string, string[]>();
+  for (const [k, v] of Object.entries(cells)) if (v) m.set(v, [...(m.get(v) ?? []), k]);
+  return m;
+}
+const connected = (ks: string[]) => {
+  const set = new Set(ks);
+  const seen = new Set([ks[0]]);
+  const stack = [ks[0]];
+  while (stack.length) {
+    const [r, c] = unkey(stack.pop()!);
+    for (const [a, b] of orth(r, c)) {
+      const k = key(a, b);
+      if (set.has(k) && !seen.has(k)) { seen.add(k); stack.push(k); }
+    }
+  }
+  return seen.size === set.size;
+};
+
+/** Rule problems for the puzzles that are checked by their rules rather than one stored answer. */
+function ruleErrors(spec: PuzzleSpec, cells: Cells): string[] {
+  const errs: string[] = [];
+  if (spec.type === 'blobs') {
+    const all = editableCells(spec);
+    const missing = all.filter((k) => !cells[k]);
+    if (missing.length) errs.push(`${missing.length} squares are not in a blob`);
+    for (const [id, ks] of blobGroups(cells)) {
+      const num = ks.map((k) => { const [r, c] = unkey(k); return spec.nums[r]?.[c]; });
+      if (num.some((x) => x == null)) { errs.push(`blob ${id} has a square off the grid`); continue; }
+      if (ks.length < 2) errs.push(`blob ${id} has only one square`);
+      if (!connected(ks)) errs.push(`blob ${id} is not connected`);
+      if (prod(num as number[]) !== spec.target) errs.push(`blob ${id} multiplies to ${prod(num as number[])}`);
+    }
+  } else if (spec.type === 'pyramid') {
+    let prev = -1;
+    const vals: number[] = [];
+    spec.rows.forEach((row, r) => {
+      const picked = row.map((_, c) => c).filter((c) => norm(cells[key(r, c)]) === 'P');
+      if (picked.length !== 1) { errs.push(`row ${r + 1} has ${picked.length} squares picked`); return; }
+      const c = picked[0];
+      if (prev >= 0 && c !== prev && c !== prev + 1) errs.push(`row ${r + 1} does not touch the square above`);
+      prev = c;
+      vals.push(row[c]);
+    });
+    if (!errs.length && prod(vals) !== spec.target) errs.push(`the path multiplies to ${prod(vals)}`);
+  } else if (spec.type === 'sieve') {
+    for (let n = spec.from; n <= spec.to; n++) {
+      const v = norm(cells[String(n)]);
+      if (v !== (isPrime(n) ? 'O' : 'X')) errs.push(`${n} should be ${isPrime(n) ? 'circled' : 'crossed out'}`);
+    }
+  }
+  return errs;
 }
 
 const norm = (v: string | undefined) => (v ?? '').trim().toUpperCase();
@@ -85,6 +167,8 @@ export function checkPuzzle(spec: PuzzleSpec, solution: Cells, cells: Cells): bo
     return want.size === got.size && [...want].every((k) => got.has(k));
   }
   if (spec.type === 'logicgrid') return true; // only the answer picks are checked
+  // these have more than one correct picture (or the rule is the answer), so the rules decide
+  if (spec.type === 'blobs' || spec.type === 'pyramid' || spec.type === 'sieve') return ruleErrors(spec, cells).length === 0;
   if (spec.type === 'sudoku' && spec.fill?.length) {
     // every place a fill digit belongs must hold it, and no fill digit may be anywhere else
     return editableCells(spec).every((k) => {
@@ -109,6 +193,36 @@ function board(spec: PuzzleSpec, cells: Cells): Cells {
  */
 export function conflicts(spec: PuzzleSpec, cells: Cells): Set<string> {
   const bad = new Set<string>();
+  if (spec.type === 'blobs') {
+    // a blob that can no longer reach the target (too big, or not a factor of it)
+    for (const ks of blobGroups(cells).values()) {
+      const p = prod(ks.map((k) => { const [r, c] = unkey(k); return spec.nums[r]?.[c] ?? 1; }));
+      if (p > spec.target || spec.target % p !== 0) ks.forEach((k) => bad.add(k));
+    }
+    return bad;
+  }
+  if (spec.type === 'pyramid') {
+    let prev: number | null = null;
+    spec.rows.forEach((row, r) => {
+      const picked = row.map((_, c) => c).filter((c) => norm(cells[key(r, c)]) === 'P');
+      if (picked.length > 1) picked.forEach((c) => bad.add(key(r, c)));
+      if (picked.length === 1) {
+        if (prev !== null && picked[0] !== prev && picked[0] !== prev + 1) bad.add(key(r, picked[0]));
+        prev = picked[0];
+      }
+    });
+    return bad;
+  }
+  if (spec.type === 'timestable') {
+    const v = (k: string) => Number((spec.givens[k] ?? cells[k] ?? '').trim()) || 0;
+    for (let r = 1; r <= spec.rows; r++)
+      for (let c = 1; c <= spec.cols; c++) {
+        const a = v(key(r, 0)), b2 = v(key(0, c)), x = v(key(r, c));
+        if (a && b2 && x && a * b2 !== x) [key(r, 0), key(0, c), key(r, c)].forEach((k) => !spec.givens[k] && bad.add(k));
+      }
+    return bad;
+  }
+  if (spec.type === 'sieve') return bad;
   const b = board(spec, cells);
   const val = (k: string) => (b[k] ?? '').trim();
   const dupes = (groups: string[][]) => {
@@ -179,7 +293,14 @@ export function conflicts(spec: PuzzleSpec, cells: Cells): Set<string> {
 
 /** Problems with a stored solution (for the content check): empty list = the solution obeys every rule. */
 export function validateSolution(spec: PuzzleSpec, solution: Cells): string[] {
+  if (spec.type === 'blobs' || spec.type === 'pyramid' || spec.type === 'sieve') return ruleErrors(spec, solution);
   const errs: string[] = [];
+  if (spec.type === 'timestable') {
+    const v = (k: string) => Number((spec.givens[k] ?? solution[k] ?? '').trim());
+    for (let r = 1; r <= spec.rows; r++)
+      for (let c = 1; c <= spec.cols; c++) if (v(key(r, 0)) * v(key(0, c)) !== v(key(r, c))) errs.push(`(${r},${c}) is not ${v(key(r, 0))}×${v(key(0, c))}`);
+    return errs;
+  }
   const b = board(spec, solution);
   const v = (k: string) => (b[k] ?? '').trim();
   if (spec.type === 'sudoku' || spec.type === 'sumdoku') {
@@ -264,7 +385,19 @@ export function describePuzzle(spec: PuzzleSpec, cells: Cells): string {
   if (spec.type === 'hive') {
     return `Hive (each hexagon holds the smallest number that does not appear in any hexagon it touches). Hexagons (row, position: value): ${spec.hexes.map(([r, x], i) => `(${r},${x}: ${cell(String(i))})`).join(' ')}`;
   }
-  if (spec.type === 'logicgrid') return '';
+  if (spec.type === 'logicgrid' || spec.type === 'sieve') return '';
+  if (spec.type === 'blobs') {
+    const ids = blobGroups(cells);
+    return `Factor Blob puzzle, target ${spec.target}. Grid:\n${spec.nums.map((row) => row.join(' ')).join('\n')}\nThe child's blobs: ${[...ids.values()].map((ks) => ks.map((k) => { const [r, c] = unkey(k); return spec.nums[r][c]; }).join('×')).join(' | ') || 'none yet'}`;
+  }
+  if (spec.type === 'pyramid') {
+    const path = spec.rows.map((row, r) => row.find((_, c) => norm(cells[key(r, c)]) === 'P')).filter((x) => x != null);
+    return `Pyramid Descent, target ${spec.target}. Rows from the top:\n${spec.rows.map((row) => row.join(' ')).join('\n')}\nThe child's path: ${path.join(' → ') || 'none yet'}`;
+  }
+  if (spec.type === 'timestable') {
+    const lines = [...Array(spec.rows + 1)].map((_, r) => [...Array(spec.cols + 1)].map((__, c) => (r || c ? (spec.givens[key(r, c)] ?? cells[key(r, c)] ?? '') || '.' : '×')).join(' '));
+    return `Times Table puzzle (top row = column factors, left column = row factors, . = empty):\n${lines.join('\n')}`;
+  }
   const rows = 'size' in spec ? spec.size : spec.rows;
   const cols = 'size' in spec ? spec.size : spec.cols;
   const lines: string[] = [];
