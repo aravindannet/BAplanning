@@ -11,8 +11,8 @@ test('thinning keeps the ends and drops points that barely move', () => {
   assert.deepEqual(t.slice(-3, -1), [0.11, 0.2]);
 });
 test('sanitize accepts good strokes and rounds them', () => {
-  const d = sanitize({ updatedAt: 5, strokes: [{ c: '#1e2a3a', w: 2.2, p: [0.12345, 0.5, 0.5] }] });
-  assert.deepEqual(d, { updatedAt: 5, strokes: [{ c: '#1e2a3a', w: 2.2, p: [0.123, 0.5, 0.5] }] });
+  const d = sanitize({ updatedAt: 5, strokes: [{ c: '#1e2a3a', w: 2.2, p: [0.98765, 0.5, 0.5] }] });
+  assert.deepEqual(d, { updatedAt: 5, strokes: [{ c: '#1e2a3a', w: 2.2, p: [0.988, 0.5, 0.5] }] });
 });
 test('sanitize rejects bad colours, widths, numbers, and oversized pages', () => {
   assert.equal(sanitize({ updatedAt: 1, strokes: [{ c: 'url(x)', w: 2, p: [0, 0, 0] }] }), null);
