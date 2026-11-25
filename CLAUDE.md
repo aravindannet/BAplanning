@@ -19,10 +19,14 @@ What the kid sees:
 - **Problems:** scanned practice problems open in a window, from the coins on a practice task. The window never scrolls; it shrinks to fit.
   - The answer types are typed answers, tap buttons, themed dropdowns, written explanations, and interactive puzzle boards.
   - A wrong answer keeps the kid on the problem. From the 2nd wrong answer, the kid first gets **the book's own printed hint** (for ★ problems), then **AI hints** (questions about the idea, never the step or the answer).
+  - Hints already given stay with the problem until it is solved. Reopening the window shows the latest one, older ones sit behind "Earlier hints (n)", and the Rough note has a 💡 Hint button that shows the latest.
 - **Order rules:** a box's problems (and its **Learn** page) open only after every required problem in earlier boxes is solved. Learn must be read first. Then problems open one at a time; dashed (optional) problems never block anything.
 - **Stars:** 3, 2, or 1 star per problem, from the number of wrong answers.
 - **Solved problems:** opening one shows its history: every try, wrong answers, hints (book or AI), the answer, the solution, the final board, and the rough work.
 - **📝 Rough note:** every problem window flips to a grid page for Apple Pencil scratch work. It is auto-saved on the device and to the server, and never deleted.
+  - The page scrolls and grows: there is always one blank screen below the lowest writing, up to 4.9 page-widths (about 7 iPad screens).
+  - Scrolling: two fingers (before any pencil use, one finger draws); one finger once a pencil has been used (palm rejection); the ▲/▼ buttons; the mouse wheel.
+- **No text selection:** the whole app turns off text selection and the iPad long-press menu, so a held finger or resting pencil can't select the page. Inputs and textareas are still selectable.
 - **Parent passcode:** "Complete whole chapter" / "Undo all" need it.
 - **Home screen:** the app can be added to the iPad home screen with its own icon (`public/icon.svg`).
 
@@ -38,7 +42,7 @@ src/
   components/
     Checklist.tsx, TaskRow.tsx    boxes, coins (medals), stars, locks, Learn button
     ProblemDialog.tsx             the problem window: answers, hints, history, fit-to-screen, flip to Rough note
-    RoughNote.tsx                 rough-note canvas (pen, eraser, undo, palm rejection, autosave) + thumbnail
+    RoughNote.tsx                 rough-note canvas (pen, eraser, undo, palm rejection, scrolling page, autosave, hint card) + thumbnail
     LearnDialog.tsx               lesson pictures ("Got it!" marks Learn done)
     puzzles/PuzzleBoard.tsx       boards for Ch 6 types (sudoku family, hive, minesweeper, tents, logic chart)
     puzzles/FactorBoards.tsx      boards for Ch 7 types (blobs, pyramid, times table, sieve)
@@ -170,6 +174,11 @@ The cap is 3 hints per problem per day.
 
 `_hintRules.ts` rejects any hint that breaks the rules. The AI gets one retry, then a safe generic question is shown. Puzzle hints include the kid's board as text.
 
+- **The retry is a fresh single question** (the original content plus a note naming the broken rule). An earlier version sent the rejected draft back as an assistant turn plus "that breaks a rule", and the model answered conversationally ("You're right, that hint named an operation…"), which the kid saw. Do not go back to that.
+- **Self-talk is rejected:** hints that mention "that/this/my/last hint", "I shouldn't…", or open with "You're right" / "Sorry" fail the rules (`META` in `_hintRules.ts`).
+- **"Multiply" is allowed** in `timestable`, `blobs` and `pyramid` puzzles (`MULTIPLY_PUZZLES`), where multiplying is the whole puzzle. Other operation words are still blocked there, and "multiply" is blocked everywhere else. Before this, times-table hints usually fell back to the generic safe hint.
+- **Persisted hints:** the problem GET returns `hints` (from `problem_state.history`) only while the problem is unsolved. These are hints the kid has already seen, so nothing new leaks.
+
 **Cost:** fractions of a cent per hint. The Anthropic key is in Netlify env and `.env`.
 
 ## 7. Adding a chapter: the full workflow
@@ -213,6 +222,8 @@ The user scans the practice pages, the solution pages, and the "Hints to Selecte
   - tap-solve one problem of each type
   - check `.dialog.problem` `scrollHeight <= clientHeight` (no scroll) in 1194×834 and 834×1194
   - rough note: draw/erase/undo, reload, close-at-once, offline (block `PUT /api/scratch`)
+  - rough note scrolling: draw near the bottom (page grows), ▼, two-finger drag (synthetic `touch` PointerEvents with two ids), pen stroke then one-finger drag scrolls, a stroke dragged off the left edge still saves
+  - hints: two wrong tries on a ★ problem (hints start on the 2nd), close and reopen, the hint is still there; a third try shows "Earlier hints (1)"
 - **Afterwards**, clear test progress and notes from the dev DB, stop the dev server, and check that no MongoDB sockets are left open:
   `lsof -i -nP | grep ':27017' | grep -c ESTABLISHED`
 
@@ -223,6 +234,10 @@ The user scans the practice pages, the solution pages, and the "Hints to Selecte
 - **CSS class names clash globally:** `.picker` (level page) and `.loading` (full-screen gold argyle) caused visual bugs. Prefix new classes (e.g. `rough-`, `pz-`, `rs-`).
 - **Board cell values:** the server trims each cell value; it is currently 5 characters, for 3-digit products.
 - **keepalive fetch** bodies over 64 KB are refused. Rough notes fall back to the local copy for big pages.
+- **Rough-note canvas size:** the canvas covers only the visible part of the page (`position: sticky`) and is redrawn with a `-scrollTop` offset on scroll; a spacer div gives the scroll height. A canvas as tall as the whole page would pass iPad Safari's canvas memory limit.
+- **Don't use `touch-action: pan-y` on the drawing canvas:** in Safari it applies to the Apple Pencil too, so the pencil would scroll instead of drawing. Finger scrolling is done by hand in the pointer handlers.
+- **Clamp stroke points:** with pointer capture, a stroke dragged off the page gives x < 0. `sanitize` refuses the **whole** page if any point is out of range (x −0.05…, y …5), which left notes stuck on "Saved on this device". `pos()` clamps x to 0–1 and y to 0–4.9.
+- **iPad long-press selection:** CSS `user-select: none` is not enough on the canvas. It also needs a non-passive `touchstart`/`touchmove` listener that calls `preventDefault()` (React's touch listeners are passive), plus `selectstart` blocked while the note is open.
 - **The problem window must not scroll:** it measures itself and steps `--ps` from 1 down to 0.55. Re-fit is triggered by content changes and by image `onLoad`. New UI inside it should size with `calc(… * var(--ps))`.
 - **Home-screen web apps:** iPad home-screen icons must be PNG (`apple-touch-icon.png`), rendered from `public/icon.svg` with `@napi-rs/canvas`. A home-screen app has separate storage from Safari, so it asks for the PIN once.
 - **The dev server sometimes dies** when the shell resets. Restart it with `(nohup npx netlify dev --port 8888 > /tmp/ba-dev.log 2>&1 &)`.
