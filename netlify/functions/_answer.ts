@@ -46,6 +46,9 @@ export function checkAnswer(input: string, accepted: string[]): boolean {
   if (!given) return false;
   const gc = canon(given);
   if (accepted.some((a) => canon(a) === gc)) return true;
+  // a number followed by plain words ("55 pairs", "35 buses") counts when the answer is that number
+  const lead = given.match(/^(-?[\d.,/]+)\s+[a-z][a-z\s'’-]*$/i);
+  if (lead && accepted.some((a) => toNumber(canon(a)) !== null && canon(a) === canon(lead[1]))) return true;
   // order-independent list answers
   const gi = items(given).map(canon).sort().join('|');
   return accepted.some((a) => {

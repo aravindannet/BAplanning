@@ -41,3 +41,12 @@ test('equations accept / for ÷ and x for ×', () => {
   assert.ok(!checkAnswer('42/6=7', ['42 ÷ 7 = 6']));
   assert.ok(checkAnswer('1/2', ['0.5']));
 });
+
+test('a number followed by words matches a numeric answer', () => {
+  assert.equal(checkAnswer('55 pairs', ['55']), true);
+  assert.equal(checkAnswer('35 buses', ['35']), true);
+  assert.equal(checkAnswer('1,326 pairs of cards', ['1326']), true);
+  assert.equal(checkAnswer('34 buses', ['35']), false);
+  assert.equal(checkAnswer('5 and 7', ['5']), false);
+  assert.equal(checkAnswer('3 r 2', ['3']), false);
+});
