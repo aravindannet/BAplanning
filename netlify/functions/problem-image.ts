@@ -1,8 +1,8 @@
 import type { Config } from '@netlify/functions';
-import { isMongoConfigured, problemImagesCol, problemsCol, problemStateCol } from './_mongo';
+import { withMongo, isMongoConfigured, problemImagesCol, problemsCol, problemStateCol } from './_mongo';
 
 // Serves question images, lesson pages, and (once the problem is solved) its solution images.
-export default async (req: Request): Promise<Response> => {
+export default withMongo(async (req: Request): Promise<Response> => {
   const pin = process.env.APP_PIN;
   const url = new URL(req.url);
   if (pin && (req.headers.get('x-app-pin') ?? url.searchParams.get('pin')) !== pin) return new Response('pin_required', { status: 401 });
@@ -21,6 +21,6 @@ export default async (req: Request): Promise<Response> => {
   const img = await (await problemImagesCol()).findOne({ _id: id });
   if (!img) return new Response('not found', { status: 404 });
   return new Response(Buffer.from(img.data.buffer), { headers: { 'Content-Type': img.mime, 'Cache-Control': 'private, max-age=86400' } });
-};
+});
 
 export const config: Config = { path: '/api/problem-image' };

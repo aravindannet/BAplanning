@@ -379,3 +379,47 @@ button.coin.live:hover { transform: scale(1.1) rotate(-4deg); }
 textarea.explain { flex: 1; font: 500 20px/1.4 var(--sans); padding: 12px 14px; border: 4px solid var(--blue-border); border-radius: 10px; color: var(--navy); resize: vertical; }
 .hint.book { background: #e8f0fc; border-color: var(--blue-border); }
 .hint-from { display: block; font: 700 15px var(--slab); color: var(--blue); margin-bottom: 4px; }
+
+/* themed dropdown (ChoicePicker.tsx) */
+.chooser { position: relative; flex: 1; }
+.picker-btn { width: 100%; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 16px; border: 4px solid var(--blue-border); border-radius: 14px; background: #fff; font: 700 21px var(--sans); color: var(--navy); text-align: left; box-shadow: 0 3px 0 rgba(30, 42, 58, .15); }
+.picker-btn.empty { color: var(--muted); }
+.chooser.open .picker-btn { border-color: var(--blue); }
+.picker-caret { color: var(--blue); font-size: 22px; transition: transform .15s; }
+.chooser.open .picker-caret { transform: rotate(180deg); }
+.answer-row.bad .picker-btn { border-color: var(--red); background: #fdeeee; }
+.picker-list { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 6px); margin: 0; padding: 6px; list-style: none; background: #fff; border: 3px solid var(--navy); border-radius: 14px; box-shadow: 0 5px 0 var(--navy), 0 12px 20px rgba(30, 42, 58, .25); max-height: 260px; overflow: auto; animation: tip-pop .18s cubic-bezier(.2, 1.7, .4, 1) both; }
+.picker-opt { width: 100%; min-height: 48px; padding: 0 14px; border-radius: 10px; text-align: left; font: 700 20px var(--sans); color: var(--navy); background: none; }
+.picker-opt:hover { background: #e8f0fc; }
+.picker-opt.on { background: var(--yellow); box-shadow: inset 0 0 0 2px var(--gold-dk); }
+
+/* the problem dialog never scrolls (except the opened solution): sizes follow --ps (1 → 0.55), set by ProblemDialog */
+.dialog.problem { --ps: 1; overflow: hidden; padding: calc(28px * var(--ps)) calc(40px * var(--ps)); gap: calc(14px * var(--ps)); }
+.dialog.problem.scrolls { overflow: auto; }
+.dialog.problem .problem-prompt { font-size: calc(24px * var(--ps)); }
+.dialog.problem .problem-img { max-height: calc(38dvh * var(--ps)); }
+.dialog.problem .coin.big { width: calc(56px * var(--ps)); }
+.dialog.problem .answer-form { gap: calc(12px * var(--ps)); }
+.dialog.problem .answer-row input { height: calc(60px * var(--ps)); font-size: calc(28px * var(--ps)); }
+.dialog.problem .part-label { font-size: calc(22px * var(--ps)); }
+.dialog.problem .choice { min-height: calc(56px * var(--ps)); font-size: calc(21px * var(--ps)); padding: 0 calc(20px * var(--ps)); }
+.dialog.problem .choices { gap: calc(10px * var(--ps)); }
+.dialog.problem .picker-btn { min-height: calc(56px * var(--ps)); font-size: calc(21px * var(--ps)); }
+.dialog.problem textarea.explain { font-size: calc(20px * var(--ps)); }
+.dialog.problem .hint p { font-size: calc(20px * var(--ps)); }
+.dialog.problem .hint-beast { width: calc(64px * var(--ps)); }
+.dialog.problem .bn { height: calc(54px * var(--ps)); font-size: calc(20px * var(--ps)); }
+.dialog.problem .pz { gap: calc(14px * var(--ps)); }
+.dialog.problem .pz-cell { --cs: min(calc(64px * var(--ps)), calc((100vw - 120px) / var(--n, 5))); }
+.dialog.problem .pz-marks .pz-cell { --cs: min(calc(60px * var(--ps)), calc((100vw - 120px) / 6)); }
+.dialog.problem .pz-clue.top { --cs: min(calc(64px * var(--ps)), calc((100vw - 120px) / var(--n, 5))); height: calc(34px * var(--ps)); font-size: calc(20px * var(--ps)); }
+.dialog.problem .pz-clue.left, .dialog.problem .pz-clue.corner { height: min(calc(64px * var(--ps)), calc((100vw - 120px) / var(--n, 5))); font-size: calc(20px * var(--ps)); }
+.dialog.problem .pz-clue.corner { height: calc(34px * var(--ps)); }
+.dialog.problem .numkey { width: calc(60px * var(--ps)); height: calc(60px * var(--ps)); font-size: calc(28px * var(--ps)); }
+.dialog.problem .numpad { gap: calc(10px * var(--ps)); }
+.dialog.problem .pz-help { font-size: calc(16px * var(--ps)); }
+.dialog.problem .lc-cell { width: calc(44px * var(--ps)); height: calc(44px * var(--ps)); font-size: calc(24px * var(--ps)); }
+.dialog.problem .pz-logic .lc-head { height: calc(86px * var(--ps)); }
+.dialog.problem .pz-logic .lc-head span, .dialog.problem .pz-logic .lc-row { font-size: calc(16px * var(--ps)); }
+.dialog.problem .problem-win h3 { font-size: calc(40px * var(--ps)); }
+.dialog.problem .win-stars svg { width: calc(var(--sz, 56px) * var(--ps)); height: auto; }

@@ -1,5 +1,5 @@
 import type { Config } from '@netlify/functions';
-import { getProgressCollection, isMongoConfigured } from './_mongo';
+import { withMongo, getProgressCollection, isMongoConfigured } from './_mongo';
 import { findTask, getPlan } from './_plan';
 import { sendBoxComplete } from './_notify';
 
@@ -12,7 +12,7 @@ function authorized(req: Request): boolean {
   return req.headers.get('x-app-pin') === pin;
 }
 
-export default async (req: Request): Promise<Response> => {
+export default withMongo(async (req: Request): Promise<Response> => {
   if (!authorized(req)) return json({ error: 'pin_required' }, 401);
   if (!isMongoConfigured()) return json({ error: 'MONGODB_URI is not configured' }, 503);
 
@@ -105,6 +105,6 @@ export default async (req: Request): Promise<Response> => {
   }
 
   return json({ error: 'method not allowed' }, 405);
-};
+});
 
 export const config: Config = { path: '/api/progress' };

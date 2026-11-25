@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { PinRequired, checkProblem, fetchProblem, fetchReview, problemImageUrl, solutionImageUrl, type ProblemView, type Review } from '../api';
 import { Beast, Medal, Star } from './icons';
 import { Confetti } from './CompleteDialog';
 import { PuzzleBoard } from './puzzles/PuzzleBoard';
+import { ChoicePicker } from './puzzles/ChoicePicker';
 import type { Cells } from '../../netlify/functions/_puzzle';
 
 interface Props {
@@ -23,7 +24,7 @@ const fmtAnswers = (a?: Record<string, string>, cells?: Cells) => {
   return `${text ? `${text} · ` : ''}board with ${filled} square${filled === 1 ? '' : 's'} filled`;
 };
 /** Short choices become big buttons; long lists become a dropdown. */
-const asButtons = (choices: string[]) => choices.length <= 4 && choices.every((c) => c.length <= 14);
+const asButtons = (choices: string[]) => choices.length <= 6 && choices.every((c) => c.length <= 14);
 
 /**
  * One practice problem. Wrong answers keep the kid on the problem; from the second wrong answer
@@ -42,6 +43,11 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   const [cells, setCells] = useState<Cells>({});
   const [wrongParts, setWrongParts] = useState<Set<string>>(new Set());
   const first = useRef<HTMLInputElement>(null);
+  // The problem must fit on screen without scrolling: step the size down until it does (the solution
+  // panel, once opened, may scroll). Re-fit when the content or the window changes.
+  const dlg = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(0);
+  const [fitEpoch, setFitEpoch] = useState(0);
   const [justSolved, setJustSolved] = useState(false); // confetti only for a fresh solve, not when re-opening
   const [showReview, setShowReview] = useState(false);
   const [review, setReview] = useState<Review | null>(null);
@@ -97,6 +103,26 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
     first.current?.select(); // after a wrong answer the kid can just type over it
   }, [p?.n, solved, shake]);
 
+  const SCALES = [1, 0.92, 0.85, 0.78, 0.72, 0.66, 0.6, 0.55];
+  const contentKey = `${p?.n}|${solved}|${Boolean(hint)}|${msg ?? ''}|${showReview}|${wrongParts.size}`;
+  useEffect(() => {
+    setFit(0);
+    setFitEpoch((e) => e + 1);
+  }, [contentKey]);
+  useEffect(() => {
+    const onResize = () => {
+      setFit(0);
+      setFitEpoch((e) => e + 1);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  useLayoutEffect(() => {
+    const el = dlg.current;
+    if (!el || (solved && showReview)) return;
+    if (el.scrollHeight > el.clientHeight + 1 && fit < SCALES.length - 1) setFit(fit + 1);
+  }, [fit, fitEpoch, solved, showReview]);
+
   const idx = list.findIndex((x) => x.n === n);
   const next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
   const afterNext = next?.optional && idx + 2 < list.length ? list[idx + 2] : null; // dashed problems may be skipped
@@ -135,7 +161,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
 
   return (
     <div className="overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={`Problem ${n}`}>
-      <div className="dialog problem" onClick={(e) => e.stopPropagation()}>
+      <div ref={dlg} className={`dialog problem${solved && showReview ? ' scrolls' : ''}`} style={{ ['--ps' as string]: SCALES[fit] }} onClick={(e) => e.stopPropagation()}>
         {solved && justSolved && <Confetti />}
         <button className="x-close" aria-label="Close" onClick={onClose}>{'✕'}</button>
         <div className="problem-head">
@@ -224,10 +250,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                         ))}
                       </div>
                     ) : part.choices ? (
-                      <select className="choice-select" value={answers[part.label] ?? ''} onChange={(e) => setAnswers({ ...answers, [part.label]: e.target.value })} aria-label={part.label}>
-                        <option value="">Choose…</option>
-                        {part.choices.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
+                      <ChoicePicker label={part.label} value={answers[part.label] ?? ''} choices={part.choices} onChange={(v) => setAnswers({ ...answers, [part.label]: v })} />
                     ) : p.kind === 'explain' ? (
                       <textarea
                         className="explain"

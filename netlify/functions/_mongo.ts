@@ -12,8 +12,13 @@ export interface ProgressDoc {
   updatedAt: string;
 }
 
-// One client per warm function container.
+// One client per warm function instance. On Netlify a warm function handles request after request with
+// the same module state, so the client is reused. The local dev server (netlify dev) instead runs every
+// request in a fresh worker, so there the client is closed when the request finishes (see withMongo);
+// otherwise each request would leave its sockets open until the cluster's connection limit is hit.
 let clientPromise: Promise<MongoClient> | null = null;
+const DEV = process.env.NETLIFY_DEV === 'true';
+let active = 0; // requests in flight (dev only)
 
 export function isMongoConfigured(): boolean {
   return Boolean(process.env.MONGODB_URI);
@@ -23,14 +28,42 @@ async function getClient(): Promise<MongoClient> {
   const uri = process.env.MONGODB_URI;
   if (!uri) throw new Error('MONGODB_URI is not configured');
   if (!clientPromise) {
-    // Free-tier Atlas caps at 500 connections shared by every app on the cluster, and frozen function
-    // containers keep their sockets open. Keep each container to a single pooled connection and drop idle ones.
-    clientPromise = new MongoClient(uri, { maxPoolSize: 1, minPoolSize: 0, maxIdleTimeMS: 10_000, appName: 'beast-academy' }).connect().catch((err) => {
+    // Free-tier Atlas caps connections for every app on the cluster. One pooled connection per server,
+    // idle sockets dropped after 10 s, and 'poll' monitoring (no extra round-trip socket per server).
+    clientPromise = new MongoClient(uri, {
+      maxPoolSize: 1,
+      minPoolSize: 0,
+      maxIdleTimeMS: 10_000,
+      serverMonitoringMode: 'poll',
+      appName: 'beast-academy',
+    }).connect().catch((err) => {
       clientPromise = null;
       throw err;
     });
   }
   return clientPromise;
+}
+
+/**
+ * Wraps a function handler. In local dev the client is closed once no request is using it any more, so
+ * slow non-database work in the middle of a request (an AI hint, an email) can never lose its connection.
+ * On Netlify it does nothing extra: the warm instance keeps reusing its client.
+ */
+export function withMongo(handler: (req: Request) => Promise<Response>): (req: Request) => Promise<Response> {
+  if (!DEV) return handler;
+  return async (req) => {
+    active++;
+    try {
+      return await handler(req);
+    } finally {
+      active--;
+      if (active === 0 && clientPromise) {
+        const p = clientPromise;
+        clientPromise = null;
+        void p.then((c) => c.close()).catch(() => {});
+      }
+    }
+  };
 }
 
 export async function getProgressCollection(): Promise<Collection<ProgressDoc>> {

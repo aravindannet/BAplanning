@@ -144,7 +144,7 @@ function HiveBoard({ spec, cells, set, bad, readOnly }: Sub<'hive'>) {
   const height = Math.max(...pos.map((p) => p[1])) - minY + 2 * padY + 8;
   return (
     <div className="pz pz-hive">
-      <svg viewBox={`0 0 ${width} ${height}`} width={width * 1.15} height={height * 1.15} role="grid" aria-label="Hive puzzle">
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: `calc(${width * 1.15}px * var(--ps, 1))`, height: `calc(${height * 1.15}px * var(--ps, 1))` }} role="grid" aria-label="Hive puzzle">
         {spec.hexes.map((_, i) => {
           const [x0, y0] = cxy(i);
           const k = String(i);

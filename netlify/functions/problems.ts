@@ -1,5 +1,5 @@
 import type { Config } from '@netlify/functions';
-import { isMongoConfigured, problemImagesCol, problemsCol, problemStateCol, type HistoryEntry } from './_mongo';
+import { withMongo, isMongoConfigured, problemImagesCol, problemsCol, problemStateCol, type HistoryEntry } from './_mongo';
 import { checkAnswer } from './_answer';
 import { judgeExplanation, makeHint } from './_hint';
 import { checkPuzzle, describePuzzle, type Cells } from './_puzzle';
@@ -54,7 +54,7 @@ async function chapterState(level: number, chapter: PlanChapter) {
 
 const lockedResponse = (r: LockReason) => json({ error: 'locked', ...r }, 403);
 
-export default async (req: Request): Promise<Response> => {
+export default withMongo(async (req: Request): Promise<Response> => {
   if (!authorized(req)) return json({ error: 'pin_required' }, 401);
   if (!isMongoConfigured()) return json({ error: 'MONGODB_URI is not configured' }, 503);
   const problems = await problemsCol();
@@ -208,7 +208,7 @@ export default async (req: Request): Promise<Response> => {
   }
 
   return json({ error: 'method not allowed' }, 405);
-};
+});
 
 export const config: Config = { path: '/api/problems' };
 
