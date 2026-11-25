@@ -17,8 +17,8 @@ export const setPin = (pin: string) => {
 
 export class PinRequired extends Error {}
 
-async function call<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', 'x-app-pin': getPin() } });
+async function call<T>(url: string, init?: RequestInit, extra?: Record<string, string>): Promise<T> {
+  const res = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', 'x-app-pin': getPin(), ...extra } });
   if (res.status === 401) throw new PinRequired();
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
   return res.json() as Promise<T>;
@@ -38,6 +38,10 @@ export const saveChapter = (level: number, chapter: number, done: boolean, passc
 export interface ProblemCoverage {
   available: number[];
   solved: number[];
+  learn: number[]; // book pages that have a lesson/example image
+  stars: Record<string, number>; // stars earned per solved problem
+  learned: string[]; // practice task ids whose Learn was finished
+  lock: Record<string, { reason: 'learn' } | { reason: 'previous'; need: number }>; // locked problems (by number)
 }
 export interface ProblemView {
   n: number;
@@ -51,6 +55,7 @@ export interface ProblemView {
 }
 export interface CheckResult {
   correct: boolean;
+  stars?: number;
   attempts: number;
   hint?: string;
   hintsLeft?: boolean;
@@ -63,3 +68,24 @@ export const fetchProblem = (level: number, chapter: number, n: number) =>
 export const checkProblem = (level: number, chapter: number, n: number, answers: Record<string, string>) =>
   call<CheckResult>('/api/problems', { method: 'POST', body: JSON.stringify({ level, chapter, n, answers }) });
 export const problemImageUrl = (id: string) => `/api/problem-image?id=${encodeURIComponent(id)}&pin=${encodeURIComponent(getPin())}`;
+export const learnImageUrl = (level: number, chapter: number, page: number) => problemImageUrl(`${level}-c${chapter}-learn-${page}`);
+
+export const markLearned = (level: number, chapter: number, taskId: string) =>
+  call<{ ok: true }>('/api/problems', { method: 'POST', body: JSON.stringify({ action: 'learned', level, chapter, taskId }) });
+
+export interface ParentItem {
+  n: number;
+  prompt: string;
+  answer: string;
+  solution: string;
+  solutionImages: string[];
+  solved: boolean;
+  stars: number;
+  tries: number;
+  history: { at: string; kind: 'wrong' | 'solved'; answers?: Record<string, string>; hint?: string }[];
+}
+export const fetchParent = (level: number, chapter: number, code: string) =>
+  call<{ items: ParentItem[]; total: number }>(`/api/problems?level=${level}&chapter=${chapter}&parent=1`, undefined, { 'x-parent-code': code });
+export const resetProblem = (level: number, chapter: number, n: number, code: string) =>
+  call<{ ok: true }>('/api/problems', { method: 'POST', body: JSON.stringify({ action: 'reset', level, chapter, n }) }, { 'x-parent-code': code });
+export const solutionImageUrl = (id: string, code: string) => `${problemImageUrl(id)}&code=${encodeURIComponent(code)}`;

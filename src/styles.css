@@ -69,12 +69,16 @@ h1, h2, p { margin: 0; }
 .switch .active { background: var(--blue); color: #fff; border-color: var(--blue-border); }
 .side-label { font-size: 12px; font-weight: 700; color: #8a8472; margin: 10px 0 2px 2px; letter-spacing: .04em; }
 nav { display: flex; flex-direction: column; gap: 2px; }
-.chapter { display: flex; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 14px; text-align: left; font-size: 15px; font-weight: 500; color: var(--blue-nav); transition: background .15s; }
-.chapter:hover { background: #ebe6d4; }
+.chapter { --p: 0%; background: linear-gradient(90deg, #a9d98c var(--p), #ece7d6 var(--p)); display: flex; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 14px; text-align: left; font-size: 15px; font-weight: 500; color: var(--blue-nav); transition: background .15s; }
+.chapter:hover { filter: brightness(.96); }
 .chapter .num { width: 26px; height: 26px; border-radius: 50%; background: #e4e9f3; display: grid; place-items: center; font-size: 14px; font-weight: 700; flex: none; }
 .chapter .name { flex: 1; }
 .chapter .count { font-size: 13px; font-weight: 700; color: var(--blue); }
-.chapter.active { background: var(--yellow); font-weight: 700; }
+.chapter.active { background: linear-gradient(90deg, #8fcb6c var(--p), var(--yellow) var(--p)); box-shadow: inset 0 0 0 3px var(--blue); font-weight: 700; }
+.chapter.full { background: #8fcb6c; color: #1f4d12; font-weight: 700; }
+.chapter.full .num { background: var(--green-dk); color: #fff; }
+.chapter.full .count { color: #1f4d12; }
+.chapter.part .count { color: var(--green-dk); }
 .chapter.active .num { background: var(--blue); color: #fff; }
 .side-beast { width: 80px; margin: auto auto 2px; padding-top: 36px; flex: none; }
 @media (max-height: 820px) { .side-beast { display: none; } }
@@ -135,6 +139,7 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .topic { align-self: flex-start; background: #fff1bf; border: 2px solid var(--gold-dk); border-radius: 12px; padding: calc(6px * var(--s)) calc(14px * var(--s)); font-size: calc(19px * var(--s)); font-weight: 700; }
 .problems-label { font-size: calc(16px * var(--s)); font-weight: 700; }
 .icons { display: flex; flex-wrap: wrap; gap: calc(7px * var(--s)) calc(8px * var(--s)); padding: 2px 0; }
+.icons:has(.coin-wrap) { gap: 0 calc(22px * var(--s)); padding: 2px 4px 0; }
 .mark { margin-top: auto; flex: none; padding: calc(12px * var(--s)) 0; border-radius: 28px; border: 4px solid var(--c); background: #fff; color: var(--c); font-weight: 700; font-size: calc(20px * var(--s)); box-shadow: 0 3px 0 rgba(0, 0, 0, .25); transition: transform .12s; }
 .mark:hover { transform: translateY(-1px); }
 .mark:active { transform: translateY(2px); box-shadow: none; }
@@ -203,9 +208,8 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   .side-label, .side-beast { display: none; }
   .switch { order: 1; }
   nav { order: 2; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; flex: 1 0 100%; gap: 6px; padding-bottom: 2px; }
-  .chapter { flex: none; padding: 6px 12px; font-size: 15px; background: #ebe6d4; }
+  .chapter { flex: none; padding: 6px 12px; font-size: 15px; }
   .chapter .num, .chapter .count { display: none; }
-  .chapter.active { background: var(--yellow); }
   .main { flex: 1; min-height: 0; }
   .content { padding: 10px 14px 12px; }
   .tasks { grid-template-columns: minmax(0, 1fr); overflow: hidden; }
@@ -241,3 +245,67 @@ button.coin.live.solved { background: var(--green); border-color: var(--green-dk
 .mark.locked, .mark:disabled { opacity: .6; cursor: not-allowed; }
 .passcode { width: 100%; height: 56px; text-align: center; font: 700 28px var(--sans); letter-spacing: .3em; border: 4px solid var(--blue-border); border-radius: 10px; }
 .dialog.confirm .problem-msg { text-align: center; }
+
+/* ---------- Learn (book explanation area) ---------- */
+.learn-btn { margin-left: auto; flex: none; background: var(--yellow); color: var(--navy); border: 2px solid var(--gold-dk); border-radius: 999px; padding: 2px 12px; font: 700 14px var(--slab); text-transform: none; box-shadow: 0 2px 0 rgba(0, 0, 0, .25); transition: transform .15s; }
+.learn-btn:hover { transform: scale(1.06) rotate(-2deg); }
+.dialog.learn { width: 900px; max-height: calc(100dvh - 40px); margin-top: 0; padding: 22px 28px 20px; text-align: left; align-items: stretch; }
+.learn-title { font: 700 30px var(--slab); color: var(--blue); }
+.learn-scroll { overflow: auto; border: 3px solid var(--blue-border); border-radius: 10px; background: #fff; max-height: calc(100dvh - 230px); }
+.learn-img { display: block; width: 100%; height: auto; }
+.learn-nav { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.learn-nav .bn { height: 48px; font-size: 17px; }
+.learn-nav .bn.primary { width: auto; margin: 0 0 0 auto; }
+
+/* ---------- guided practice: locks, Learn first, parent area ---------- */
+.coin.live.locked { background: #d9dde3; border-color: #aab2bd; color: #7b8593; box-shadow: none; cursor: not-allowed; position: relative; }
+.coin.live.locked::after { content: '🔒'; position: absolute; right: -6px; top: -7px; font-size: 13px; }
+.coin.optional.live.locked { background: #f1f3f6; }
+.learn-btn.pending { background: var(--gold); animation: pulse-learn 1.4s ease-in-out infinite; }
+@keyframes pulse-learn { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+.parent-btn { background: #fff; border: 3px solid var(--blue-border); color: var(--blue); border-radius: 999px; padding: 4px 12px; font: 700 14px var(--slab); white-space: nowrap; }
+.dialog.parent { width: 920px; max-height: calc(100dvh - 40px); margin-top: 0; padding: 22px 28px; text-align: left; align-items: stretch; }
+.parent-summary { display: flex; gap: 18px; flex-wrap: wrap; font: 500 17px var(--sans); color: var(--muted); }
+.parent-summary b { color: var(--navy); font-size: 22px; }
+.parent-list { overflow: auto; max-height: calc(100dvh - 220px); display: flex; flex-direction: column; gap: 8px; }
+.parent-row { border: 2px solid var(--silver); border-radius: 10px; background: #fff; }
+.parent-row.open { border-color: var(--blue-border); }
+.parent-head { width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px 12px; text-align: left; }
+.parent-head .coin { width: 38px; height: 38px; font-size: 15px; flex: none; }
+.parent-head .coin.solved { background: var(--green); border-color: var(--green-dk); color: #fff; }
+.parent-prompt { flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill { background: #eef2f8; border-radius: 999px; padding: 2px 10px; font: 700 13px var(--sans); color: var(--blue-nav); white-space: nowrap; }
+.pill.ok { background: var(--o-tint); color: var(--green-dk); }
+.pill.todo { background: var(--p-tint); color: var(--brick-dk); }
+.parent-body { padding: 4px 16px 14px; display: flex; flex-direction: column; gap: 6px; }
+.parent-body h4 { margin: 8px 0 0; font: 700 14px var(--slab); text-transform: uppercase; color: var(--blue); letter-spacing: .04em; }
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.timeline li { display: flex; gap: 12px; font-size: 16px; }
+.timeline li.solved { color: var(--green-dk); }
+.timeline li.wrong { color: var(--navy); }
+.timeline .when { color: var(--muted); min-width: 120px; font-size: 14px; }
+.given-hint { display: block; margin-top: 2px; background: var(--yellow); border-radius: 8px; padding: 6px 10px; font-style: normal; font-size: 15px; color: var(--navy); }
+.parent-ans { font: 700 18px var(--sans); margin: 0; }
+.parent-sol { white-space: pre-wrap; font: 500 16px/1.45 var(--sans); margin: 0; background: #f6f8fc; border-radius: 8px; padding: 10px 12px; }
+
+/* ---------- stars under each problem coin ---------- */
+.coin-wrap { --w: calc(44px * var(--s)); position: relative; display: inline-flex; flex-direction: column; align-items: center; padding-bottom: calc(20px * var(--s)); }
+.coin-stars { display: inline-flex; gap: 1px; line-height: 0; }
+/* stars curved along the bottom edge of the coin: centre of each star sits on a circle around the coin centre */
+.coin-wrap .coin-stars .star { width: calc(17px * var(--s)); height: calc(17px * var(--s)); }
+.coin-stars.arc { position: absolute; inset: 0; display: block; pointer-events: none; }
+.coin-stars.arc .cs { position: absolute; display: block; transform: translate(-50%, -50%) rotate(var(--rot)); }
+.coin-stars.arc .cs:nth-child(1) { --rot: 38deg; left: calc(var(--w) / 2 - (var(--w) / 2 + 9px) * 0.616); top: calc(var(--w) / 2 + (var(--w) / 2 + 9px) * 0.788); }
+.coin-stars.arc .cs:nth-child(2) { --rot: 0deg; left: 50%; top: calc(var(--w) + 9px); }
+.coin-stars.arc .cs:nth-child(3) { --rot: -38deg; left: calc(var(--w) / 2 + (var(--w) / 2 + 9px) * 0.616); top: calc(var(--w) / 2 + (var(--w) / 2 + 9px) * 0.788); }
+.win-stars { display: flex; align-items: flex-end; gap: 4px; animation: bounce-in .5s both; }
+.parent-head .coin-stars { flex: none; }
+
+.cs.pop svg { animation: star-pop .55s cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: inherit; }
+@keyframes star-pop { 0% { transform: scale(0) rotate(-40deg); } 70% { transform: scale(1.35) rotate(12deg); } 100% { transform: scale(1) rotate(0); } }
+.coin.live.locked ~ .coin-stars { opacity: .55; }
+@media (prefers-reduced-motion: reduce) { .cs.pop svg { animation: none; } }
+
+/* coins that carry stars (scanned problems) are a little bigger; plain coins stay compact */
+.coin-wrap .coin { width: calc(44px * var(--s)); height: calc(44px * var(--s)); font-size: calc(17px * var(--s)); }
+.coin-plain { display: inline-flex; }

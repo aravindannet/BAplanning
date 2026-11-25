@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface Props {
   title: string;
@@ -14,6 +14,9 @@ interface Props {
 
 export function ConfirmDialog({ title, body, confirmLabel, danger, passcode, error, busy, onConfirm, onCancel }: Props) {
   const [code, setCode] = useState('');
+  useEffect(() => {
+    if (error) setCode(''); // a wrong passcode clears the box for another try
+  }, [error]);
   const submit = () => {
     if (!busy && (!passcode || code)) onConfirm(code);
   };

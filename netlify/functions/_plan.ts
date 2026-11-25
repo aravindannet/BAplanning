@@ -4,6 +4,8 @@ import level5 from '../../src/data/level5.json';
 export interface PlanTask {
   id: string;
   type: 'guide' | 'online' | 'practice';
+  pages?: number[];
+  problems?: { n: number; optional: boolean }[];
 }
 export interface PlanBox {
   id: string;

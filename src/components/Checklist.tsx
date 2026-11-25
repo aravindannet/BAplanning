@@ -9,7 +9,7 @@ import { TaskRow } from './TaskRow';
  * taller than the space it was given, it steps down a density level (smaller icons and type) until
  * everything fits, and re-measures when the window is resized.
  */
-function BoxView({ box, index, total, complete, done, onToggle, available, solved, onOpenProblem }: { box: Box; index: number; total: number; complete: boolean; done: Set<string>; onToggle: (id: string) => void; available: Set<number>; solved: Set<number>; onOpenProblem: (n: number, list: number[]) => void }) {
+function BoxView({ box, index, total, complete, done, onToggle, available, solved, onOpenProblem, learn, onOpenLearn, learned, stars, lock }: { box: Box; index: number; total: number; complete: boolean; done: Set<string>; onToggle: (id: string) => void; available: Set<number>; solved: Set<number>; onOpenProblem: (n: number, list: { n: number; optional: boolean }[]) => void; learn: Set<number>; onOpenLearn: (pages: number[], taskId: string) => void; learned: Set<string>; stars: Record<string, number>; lock: Props['lock'] }) {
   const ref = useRef<HTMLElement>(null);
   const [density, setDensity] = useState(0);
   const [epoch, setEpoch] = useState(0);
@@ -22,6 +22,17 @@ function BoxView({ box, index, total, complete, done, onToggle, available, solve
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // When the problem data arrives or changes (coins gain stars, locks open), the box's content changes
+  // size, so start the fit again from the roomiest density.
+  const contentKey = `${available.size}/${solved.size}/${learn.size}/${learned.size}/${Object.keys(lock).length}/${Object.values(stars).join(',')}`;
+  const firstKey = useRef(contentKey);
+  useEffect(() => {
+    if (firstKey.current === contentKey) return;
+    firstKey.current = contentKey;
+    setDensity(0);
+    setEpoch((e) => e + 1);
+  }, [contentKey]);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -45,7 +56,7 @@ function BoxView({ box, index, total, complete, done, onToggle, available, solve
       </div>
       <div className="tasks" style={{ ['--cols' as string]: box.tasks.length }}>
         {box.tasks.map((t, i) => (
-          <TaskRow key={t.id} task={t} index={i} done={done.has(t.id)} onToggle={() => onToggle(t.id)} available={available} solved={solved} onOpenProblem={onOpenProblem} />
+          <TaskRow key={t.id} task={t} index={i} done={done.has(t.id)} onToggle={() => onToggle(t.id)} available={available} solved={solved} onOpenProblem={onOpenProblem} learn={learn} onOpenLearn={onOpenLearn} learned={learned} stars={stars} lock={lock} />
         ))}
       </div>
     </section>
@@ -62,10 +73,16 @@ interface Props {
   onNavigate: (level: number | null, chapter?: number, box?: number) => void;
   available: Set<number>;
   solved: Set<number>;
-  onOpenProblem: (n: number, list: number[]) => void;
+  onOpenProblem: (n: number, list: { n: number; optional: boolean }[]) => void;
+  learn: Set<number>;
+  onOpenLearn: (pages: number[], taskId: string) => void;
+  learned: Set<string>;
+  stars: Record<string, number>;
+  lock: Record<string, { reason: 'learn' } | { reason: 'previous'; need: number }>;
+  onOpenParent: () => void;
 }
 
-export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAll, onNavigate, available, solved, onOpenProblem }: Props) {
+export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAll, onNavigate, available, solved, onOpenProblem, learn, onOpenLearn, learned, stars, lock, onOpenParent }: Props) {
   const plan = PLANS[level];
   const chapter = plan.chapters.find((c) => c.number === chapterNo) ?? plan.chapters[0];
   const d = done[level];
@@ -116,11 +133,18 @@ export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAl
         <nav>
           {plan.chapters.map((c) => {
             const n = c.boxes.filter((b) => isBoxDone(b, d)).length;
+            const full = n === c.boxes.length;
             return (
-              <button key={c.id} className={c.number === chapter.number ? 'chapter active' : 'chapter'} onClick={() => onNavigate(level, c.number)}>
-                <span className="num">{c.number}</span>
+              <button
+                key={c.id}
+                className={`chapter${c.number === chapter.number ? ' active' : ''}${full ? ' full' : n > 0 ? ' part' : ''}`}
+                style={{ ['--p' as string]: `${(n / c.boxes.length) * 100}%` }}
+                title={`${n} of ${c.boxes.length} boxes done`}
+                onClick={() => onNavigate(level, c.number)}
+              >
+                <span className="num">{full ? '✓' : c.number}</span>
                 <span className="name">{c.title}</span>
-                {n > 0 && <span className="count">{n}/{c.boxes.length}</span>}
+                {n > 0 && <span className="count">{full ? 'Done!' : `${n}/${c.boxes.length}`}</span>}
               </button>
             );
           })}
@@ -139,7 +163,7 @@ export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAl
             <button className={`all-btn${allDone ? ' undo' : ''}`} onClick={() => onChapterAll(chapter.number, !allDone)}>
               {allDone ? '↺ Undo all' : '✓ Complete whole chapter'}
             </button>
-            <span className="xp-label">{doneCount} of {chapter.boxes.length} boxes</span>
+            <button className="parent-btn" onClick={onOpenParent}>👪 Parent</button>
             <div className="xp" role="progressbar" aria-valuemin={0} aria-valuemax={chapter.boxes.length} aria-valuenow={doneCount}>
               <div className="xp-fill" style={{ width: `${pct}%` }} />
               <span key={doneCount}>{doneCount} / {chapter.boxes.length}</span>
@@ -167,7 +191,7 @@ export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAl
             </div>
           </div>
 
-          <BoxView key={box.id} box={box} index={idx} total={chapter.boxes.length} complete={complete} done={d} onToggle={(id) => onToggle(box, id)} available={available} solved={solved} onOpenProblem={onOpenProblem} />
+          <BoxView key={box.id} box={box} index={idx} total={chapter.boxes.length} complete={complete} done={d} onToggle={(id) => onToggle(box, id)} available={available} solved={solved} onOpenProblem={onOpenProblem} learn={learn} onOpenLearn={onOpenLearn} learned={learned} stars={stars} lock={lock} />
         </div>
 
         <div className="track">

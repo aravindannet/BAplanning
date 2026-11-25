@@ -52,9 +52,19 @@ export interface ProblemImageDoc {
   mime: string;
   data: Binary;
 }
+export interface HistoryEntry {
+  at: string; // ISO time
+  kind: 'wrong' | 'solved';
+  answers?: Record<string, string>;
+  hint?: string; // hint shown with this wrong answer
+}
 export interface ProblemStateDoc {
-  _id: string; // same id as the problem
+  _id: string; // same id as the problem, or `learn-<taskId>` for a finished Learn
   attempts: number; // wrong answers since last solved / reset
+  tries?: number; // total wrong answers (for the parent)
+  history?: HistoryEntry[]; // every wrong answer (+ hint) and the solve, for the parent
+  learned?: boolean; // only on `learn-<taskId>` docs
+  stars?: number; // 1-3, earned when solved
   solved: boolean;
   hintDay?: string; // yyyy-mm-dd of hintCount
   hintCount?: number;

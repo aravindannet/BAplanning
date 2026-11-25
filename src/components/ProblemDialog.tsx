@@ -7,7 +7,7 @@ interface Props {
   level: number;
   chapter: number;
   n: number;
-  list: number[]; // problems of this task that have content, in order
+  list: { n: number; optional: boolean }[]; // problems of this task that have content, in order
   onSolved: () => void;
   onOpen: (n: number) => void;
   onClose: () => void;
@@ -22,6 +22,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [solved, setSolved] = useState(false);
+  const [stars, setStars] = useState(3);
   const [shake, setShake] = useState(0);
   const [msg, setMsg] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -43,7 +44,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
         setSolved(v.solved);
       })
       .catch((e) => {
-        if (live) setMsg(e instanceof PinRequired ? 'Please reload and enter the PIN.' : 'Could not load this problem.');
+        if (live) setMsg(e instanceof PinRequired ? 'Please reload and enter the PIN.' : (e as Error).message === 'locked' ? 'This one is locked. Finish the earlier problems (and Learn) first!' : 'Could not load this problem.');
       });
     return () => {
       live = false;
@@ -55,8 +56,9 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
     first.current?.select(); // after a wrong answer the kid can just type over it
   }, [p?.n, solved, shake]);
 
-  const idx = list.indexOf(n);
-  const nextN = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
+  const idx = list.findIndex((x) => x.n === n);
+  const next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
+  const afterNext = next?.optional && idx + 2 < list.length ? list[idx + 2] : null; // dashed problems may be skipped
   const allFilled = p ? p.parts.every((x) => (answers[x.label] ?? '').trim()) : false;
 
   const submit = async () => {
@@ -66,6 +68,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
     try {
       const r = await checkProblem(level, chapter, n, answers);
       if (r.correct) {
+        setStars(r.stars ?? 3);
         setSolved(true);
         setHint(null);
         onSolved();
@@ -102,10 +105,13 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
             ))}
             {solved ? (
               <div className="problem-win">
-                <Star size={64} />
-                <h3>Correct!</h3>
-                {nextN !== null ? (
-                  <button className="bn primary" onClick={() => onOpen(nextN)}>Next problem {'›'}</button>
+                <div className="win-stars">{[0, 1, 2].map((i) => <Star key={i} size={i === 1 ? 72 : 56} dim={i >= stars} />)}</div>
+                <h3>{stars === 3 ? 'Perfect!' : 'Correct!'}</h3>
+                {next ? (
+                  <>
+                    <button className="bn primary" onClick={() => onOpen(next.n)}>{next.optional ? 'Try the dashed one' : 'Next problem'} {'›'}</button>
+                    {afterNext && <button className="link" onClick={() => onOpen(afterNext.n)}>Skip the dashed one {'›'}</button>}
+                  </>
                 ) : (
                   <button className="bn primary" onClick={onClose}>All done here!</button>
                 )}
