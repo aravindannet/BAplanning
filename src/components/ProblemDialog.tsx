@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { PinRequired, checkProblem, fetchProblem, problemImageUrl, type ProblemView } from '../api';
-import { Beast, Star } from './icons';
+import { PinRequired, checkProblem, fetchProblem, fetchReview, problemImageUrl, solutionImageUrl, type ProblemView, type Review } from '../api';
+import { Beast, Medal, Star } from './icons';
 import { Confetti } from './CompleteDialog';
 
 interface Props {
@@ -12,6 +12,9 @@ interface Props {
   onOpen: (n: number) => void;
   onClose: () => void;
 }
+
+const fmtTime = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const fmtAnswers = (a?: Record<string, string>) => Object.entries(a ?? {}).map(([k, v]) => (k === 'answer' ? v : `${k}: ${v}`)).join(' · ');
 
 /**
  * One practice problem. Wrong answers keep the kid on the problem; from the second wrong answer
@@ -28,6 +31,10 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   const [hint, setHint] = useState<string | null>(null);
   const [wrongParts, setWrongParts] = useState<Set<string>>(new Set());
   const first = useRef<HTMLInputElement>(null);
+  const [justSolved, setJustSolved] = useState(false); // confetti only for a fresh solve, not when re-opening
+  const [showReview, setShowReview] = useState(false);
+  const [review, setReview] = useState<Review | null>(null);
+  const [reviewErr, setReviewErr] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -37,11 +44,16 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
     setMsg(null);
     setHint(null);
     setWrongParts(new Set());
+    setJustSolved(false);
+    setShowReview(false);
+    setReview(null);
+    setReviewErr(false);
     fetchProblem(level, chapter, n)
       .then((v) => {
         if (!live) return;
         setP(v);
         setSolved(v.solved);
+        if (v.solved) setShowReview(true); // opening a solved problem shows its solution and history right away
       })
       .catch((e) => {
         if (live) setMsg(e instanceof PinRequired ? 'Please reload and enter the PIN.' : (e as Error).message === 'locked' ? 'This one is locked. Finish the earlier problems (and Learn) first!' : 'Could not load this problem.');
@@ -50,6 +62,22 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
       live = false;
     };
   }, [level, chapter, n]);
+
+  // load the official solution + every try once it is asked for (the server only gives it for solved problems)
+  useEffect(() => {
+    if (!showReview || !solved || review) return;
+    let live = true;
+    fetchReview(level, chapter, n)
+      .then((r) => {
+        if (!live) return;
+        setReview(r);
+        setStars(r.stars);
+      })
+      .catch(() => live && setReviewErr(true));
+    return () => {
+      live = false;
+    };
+  }, [showReview, solved, review, level, chapter, n]);
 
   useEffect(() => {
     first.current?.focus();
@@ -70,6 +98,8 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
       if (r.correct) {
         setStars(r.stars ?? 3);
         setSolved(true);
+        setJustSolved(true);
+        setReview(null);
         setHint(null);
         onSolved();
       } else {
@@ -89,10 +119,10 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   return (
     <div className="overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={`Problem ${n}`}>
       <div className="dialog problem" onClick={(e) => e.stopPropagation()}>
-        {solved && <Confetti />}
+        {solved && justSolved && <Confetti />}
         <button className="x-close" aria-label="Close" onClick={onClose}>{'✕'}</button>
         <div className="problem-head">
-          <span className="coin big">{n}</span>
+          <span className="coin big"><Medal n={n} kind={solved ? 'green' : 'gold'} /></span>
           <span className="problem-src">{p?.book ? `Book ${p.book}` : ''}{p?.page ? ` · page ${p.page}` : ''}</span>
         </div>
         {!p && !msg && <p className="what">Loading…</p>}
@@ -114,6 +144,40 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                   </>
                 ) : (
                   <button className="bn primary" onClick={onClose}>All done here!</button>
+                )}
+                <button className="bn ghost" onClick={() => setShowReview((v) => !v)} aria-expanded={showReview}>
+                  {showReview ? 'Hide solution' : '📖 Show solution'}
+                </button>
+                {showReview && (
+                  <div className="review">
+                    {reviewErr && <p className="what">Could not load the solution.</p>}
+                    {!review && !reviewErr && <p className="what">Loading…</p>}
+                    {review && (
+                      <>
+                        <div className="review-pills">
+                          <span className="pill">{review.tries} {review.tries === 1 ? 'wrong answer' : 'wrong answers'}</span>
+                          <span className="pill">{review.history.filter((h) => h.hint).length} hints</span>
+                        </div>
+                        <h4>Tries</h4>
+                        <ol className="timeline">
+                          {review.history.map((h, i) => (
+                            <li key={i} className={h.kind}>
+                              <span className="when">{fmtTime(h.at)}</span>
+                              <span>
+                                {h.kind === 'solved' ? '✓ Right' : '✗ Wrong'}: <b>{fmtAnswers(h.answers)}</b>
+                                {h.hint && <em className="given-hint">Hint: “{h.hint}”</em>}
+                              </span>
+                            </li>
+                          ))}
+                        </ol>
+                        <h4>Answer</h4>
+                        <p className="parent-ans">{review.answer}</p>
+                        <h4>Solution</h4>
+                        <p className="parent-sol">{review.solution}</p>
+                        {review.solutionImages.map((id) => <img key={id} className="problem-img" src={solutionImageUrl(id)} alt="Solution" />)}
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             ) : (

@@ -139,7 +139,7 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .topic { align-self: flex-start; background: #fff1bf; border: 2px solid var(--gold-dk); border-radius: 12px; padding: calc(6px * var(--s)) calc(14px * var(--s)); font-size: calc(19px * var(--s)); font-weight: 700; }
 .problems-label { font-size: calc(16px * var(--s)); font-weight: 700; }
 .icons { display: flex; flex-wrap: wrap; gap: calc(7px * var(--s)) calc(8px * var(--s)); padding: 2px 0; }
-.icons:has(.coin-wrap) { gap: 0 calc(22px * var(--s)); padding: 2px 4px 0; }
+.icons:has(.coin-wrap) { gap: 0 calc(34px * var(--s)); padding: 2px 4px 0; }
 .mark { margin-top: auto; flex: none; padding: calc(12px * var(--s)) 0; border-radius: 28px; border: 4px solid var(--c); background: #fff; color: var(--c); font-weight: 700; font-size: calc(20px * var(--s)); box-shadow: 0 3px 0 rgba(0, 0, 0, .25); transition: transform .12s; }
 .mark:hover { transform: translateY(-1px); }
 .mark:active { transform: translateY(2px); box-shadow: none; }
@@ -151,8 +151,6 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .page-icon text { font: 700 18px var(--sans); }
 .page-icon.guide { color: var(--blue); } .page-icon.practice { color: var(--brick); } .page-icon.online { color: var(--green-dk); }
 .page-icon .sheet { stroke: currentColor; } .page-icon .fold { fill: currentColor; stroke: currentColor; stroke-width: 2; } .page-icon text { fill: currentColor; }
-.coin { width: calc(40px * var(--s)); height: calc(40px * var(--s)); border-radius: 50%; background: var(--gold); border: 3px solid var(--gold-dk); color: var(--gold-text); font-weight: 700; font-size: calc(15px * var(--s)); display: grid; place-items: center; animation: bounce-in .45s both; }
-.coin.optional { background: #eef2f8; border: 3px dashed var(--blue-nav); color: var(--blue-nav); }
 
 /* ---------- terracotta track with Back / Next ---------- */
 .track { flex: none; position: relative; height: 92px; background: var(--brick); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; }
@@ -218,13 +216,9 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 }
 
 /* ---------- practice problems ---------- */
-button.coin.live { cursor: pointer; border-color: var(--blue); box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--blue-nav); transition: transform .15s; }
-button.coin.live:hover { transform: scale(1.12) rotate(-4deg); }
-button.coin.live.solved { background: var(--green); border-color: var(--green-dk); color: #fff; box-shadow: none; }
 .dialog.problem { padding: 28px 40px 28px; width: 720px; max-height: calc(100dvh - 60px); margin-top: 0; overflow: auto; text-align: left; align-items: stretch; }
 .x-close { position: absolute; top: 10px; right: 14px; font-size: 22px; color: var(--muted); width: 40px; height: 40px; }
 .problem-head { display: flex; align-items: center; gap: 14px; }
-.coin.big { width: 52px; height: 52px; font-size: 22px; animation: none; }
 .problem-src { color: var(--muted); font-weight: 700; }
 .problem-prompt { font: 500 24px/1.45 var(--sans); white-space: pre-wrap; color: var(--navy); }
 .problem-img { max-width: 100%; max-height: 38dvh; object-fit: contain; align-self: center; border-radius: 8px; }
@@ -258,27 +252,11 @@ button.coin.live.solved { background: var(--green); border-color: var(--green-dk
 .learn-nav .bn.primary { width: auto; margin: 0 0 0 auto; }
 
 /* ---------- guided practice: locks, Learn first, parent area ---------- */
-.coin.live.locked { background: #d9dde3; border-color: #aab2bd; color: #7b8593; box-shadow: none; cursor: not-allowed; position: relative; }
-.coin.live.locked::after { content: '🔒'; position: absolute; right: -6px; top: -7px; font-size: 13px; }
-.coin.optional.live.locked { background: #f1f3f6; }
 .learn-btn.pending { background: var(--gold); animation: pulse-learn 1.4s ease-in-out infinite; }
 @keyframes pulse-learn { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-.parent-btn { background: #fff; border: 3px solid var(--blue-border); color: var(--blue); border-radius: 999px; padding: 4px 12px; font: 700 14px var(--slab); white-space: nowrap; }
-.dialog.parent { width: 920px; max-height: calc(100dvh - 40px); margin-top: 0; padding: 22px 28px; text-align: left; align-items: stretch; }
-.parent-summary { display: flex; gap: 18px; flex-wrap: wrap; font: 500 17px var(--sans); color: var(--muted); }
-.parent-summary b { color: var(--navy); font-size: 22px; }
-.parent-list { overflow: auto; max-height: calc(100dvh - 220px); display: flex; flex-direction: column; gap: 8px; }
-.parent-row { border: 2px solid var(--silver); border-radius: 10px; background: #fff; }
-.parent-row.open { border-color: var(--blue-border); }
-.parent-head { width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px 12px; text-align: left; }
-.parent-head .coin { width: 38px; height: 38px; font-size: 15px; flex: none; }
-.parent-head .coin.solved { background: var(--green); border-color: var(--green-dk); color: #fff; }
-.parent-prompt { flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pill { background: #eef2f8; border-radius: 999px; padding: 2px 10px; font: 700 13px var(--sans); color: var(--blue-nav); white-space: nowrap; }
 .pill.ok { background: var(--o-tint); color: var(--green-dk); }
 .pill.todo { background: var(--p-tint); color: var(--brick-dk); }
-.parent-body { padding: 4px 16px 14px; display: flex; flex-direction: column; gap: 6px; }
-.parent-body h4 { margin: 8px 0 0; font: 700 14px var(--slab); text-transform: uppercase; color: var(--blue); letter-spacing: .04em; }
 .timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .timeline li { display: flex; gap: 12px; font-size: 16px; }
 .timeline li.solved { color: var(--green-dk); }
@@ -288,24 +266,58 @@ button.coin.live.solved { background: var(--green); border-color: var(--green-dk
 .parent-ans { font: 700 18px var(--sans); margin: 0; }
 .parent-sol { white-space: pre-wrap; font: 500 16px/1.45 var(--sans); margin: 0; background: #f6f8fc; border-radius: 8px; padding: 10px 12px; }
 
+/* ---------- problem medals (SVG, see Medal in icons.tsx) ---------- */
+.coin { display: block; position: relative; width: calc(40px * var(--s)); padding: 0; border: 0; background: none; line-height: 0; animation: bounce-in .45s both; }
+.coin svg.medal { display: block; width: 100%; height: auto; overflow: visible; }
+button.coin.live { cursor: pointer; transition: transform .15s; }
+button.coin.live:hover { transform: scale(1.1) rotate(-4deg); }
+.coin.locked { cursor: not-allowed; }
+.coin.locked ~ .coin-stars { opacity: .45; }
+/* the medal to do next wears a dashed blue "tap me" ring */
+button.coin.live.open::before { content: ''; position: absolute; left: 50%; top: 49%; width: 120%; aspect-ratio: 1; box-sizing: border-box; translate: -50% -50%; border-radius: 50%; border: calc(3px * var(--s)) dashed var(--blue-nav); animation: ring-spin 14s linear infinite; pointer-events: none; }
+@keyframes ring-spin { to { rotate: 360deg; } }
+.coin.big { width: 56px; animation: none; }
+.coin-wrap .coin { width: calc(54px * var(--s)); }
+@media (prefers-reduced-motion: reduce) { button.coin.live.open::before { animation: none; } }
+
 /* ---------- stars under each problem coin ---------- */
-.coin-wrap { --w: calc(44px * var(--s)); position: relative; display: inline-flex; flex-direction: column; align-items: center; padding-bottom: calc(20px * var(--s)); }
+.coin-wrap { --w: calc(54px * var(--s)); position: relative; display: inline-flex; flex-direction: column; align-items: center; padding-bottom: calc(44px * var(--s)); }
 .coin-stars { display: inline-flex; gap: 1px; line-height: 0; }
-/* stars curved along the bottom edge of the coin: centre of each star sits on a circle around the coin centre */
-.coin-wrap .coin-stars .star { width: calc(17px * var(--s)); height: calc(17px * var(--s)); }
-.coin-stars.arc { position: absolute; inset: 0; display: block; pointer-events: none; }
-.coin-stars.arc .cs { position: absolute; display: block; transform: translate(-50%, -50%) rotate(var(--rot)); }
-.coin-stars.arc .cs:nth-child(1) { --rot: 38deg; left: calc(var(--w) / 2 - (var(--w) / 2 + 9px) * 0.616); top: calc(var(--w) / 2 + (var(--w) / 2 + 9px) * 0.788); }
-.coin-stars.arc .cs:nth-child(2) { --rot: 0deg; left: 50%; top: calc(var(--w) + 9px); }
-.coin-stars.arc .cs:nth-child(3) { --rot: -38deg; left: calc(var(--w) / 2 + (var(--w) / 2 + 9px) * 0.616); top: calc(var(--w) / 2 + (var(--w) / 2 + 9px) * 0.788); }
+/* three stars form a small arch resting on the coin's lower rim: the middle one is biggest, the outer two tilt away */
+.coin-wrap .coin-stars .star { width: calc(22px * var(--s)); height: calc(22px * var(--s)); }
+.coin-stars.arc { position: absolute; left: 50%; top: calc(var(--w) * 1.08 + 2px * var(--s)); transform: translateX(-50%); display: flex; align-items: flex-start; gap: calc(-2px * var(--s)); pointer-events: none; z-index: 2; }
+.coin-stars.arc .cs { display: block; line-height: 0; }
+.coin-stars.arc .cs:nth-child(1) { transform: rotate(-14deg); }
+.coin-stars.arc .cs:nth-child(2) { transform: translateY(calc(4px * var(--s))); }
+.coin-stars.arc .cs:nth-child(3) { transform: rotate(14deg); }
+.coin-stars.arc .cs:nth-child(2) .star { width: calc(29px * var(--s)); height: calc(29px * var(--s)); }
 .win-stars { display: flex; align-items: flex-end; gap: 4px; animation: bounce-in .5s both; }
-.parent-head .coin-stars { flex: none; }
 
 .cs.pop svg { animation: star-pop .55s cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: inherit; }
 @keyframes star-pop { 0% { transform: scale(0) rotate(-40deg); } 70% { transform: scale(1.35) rotate(12deg); } 100% { transform: scale(1) rotate(0); } }
-.coin.live.locked ~ .coin-stars { opacity: .55; }
 @media (prefers-reduced-motion: reduce) { .cs.pop svg { animation: none; } }
 
 /* coins that carry stars (scanned problems) are a little bigger; plain coins stay compact */
-.coin-wrap .coin { width: calc(44px * var(--s)); height: calc(44px * var(--s)); font-size: calc(17px * var(--s)); }
 .coin-plain { display: inline-flex; }
+
+/* ---------- cartoon tooltip (Tooltip.tsx) ---------- */
+.tip-wrap { display: inline-flex; flex: none; }
+.tip-wrap.block { display: flex; margin-top: auto; }
+.tip-wrap > button:disabled { pointer-events: none; }
+.tip-wrap.block > .mark { flex: 1; }
+.tip { position: fixed; z-index: 9999; width: max-content; max-width: 260px; transform: translate(-50%, calc(-100% - 12px)); background: var(--yellow); color: var(--navy); border: 3px solid var(--navy); border-radius: 16px; padding: 8px 14px 9px; font: 700 16px/1.25 var(--sans); text-align: center; box-shadow: 0 4px 0 var(--navy), 0 10px 14px rgba(30, 42, 58, .25); pointer-events: none; animation: tip-pop .22s cubic-bezier(.2, 1.7, .4, 1) both; }
+.tip.below { transform: translate(-50%, 12px); }
+.tip::after { content: ''; position: absolute; left: calc(50% + var(--ax, 0px)); bottom: -9px; width: 14px; height: 14px; background: var(--yellow); border-right: 3px solid var(--navy); border-bottom: 3px solid var(--navy); border-bottom-right-radius: 4px; transform: translateX(-50%) rotate(45deg); }
+.tip.below::after { bottom: auto; top: -9px; border: 0; border-left: 3px solid var(--navy); border-top: 3px solid var(--navy); border-radius: 4px 0 0 0; }
+@keyframes tip-pop { from { opacity: 0; scale: .6; } to { opacity: 1; scale: 1; } }
+@media (prefers-reduced-motion: reduce) { .tip { animation: none; } }
+
+/* ---------- solution + tries inside a solved problem ---------- */
+.review { width: 100%; text-align: left; display: flex; flex-direction: column; gap: 6px; border-top: 3px dashed var(--silver); margin-top: 10px; padding-top: 10px; }
+.review h4 { margin: 8px 0 0; font: 700 14px var(--slab); text-transform: uppercase; letter-spacing: .06em; color: var(--blue); }
+.review-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.bn.ghost { background: #fff; color: var(--blue); height: 46px; font-size: 17px; box-shadow: 0 3px 0 rgba(0, 0, 0, .25); }
+
+.learn-wrap { margin-left: auto; }
+.learn-wrap .learn-btn { margin-left: 0; }
+.learn-btn.locked { background: #e3e8ef; border-color: #9aa4b2; color: #6b7585; opacity: .85; cursor: not-allowed; pointer-events: none; animation: none; }

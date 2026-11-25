@@ -3,7 +3,7 @@ import { isMongoConfigured, problemImagesCol, problemsCol, problemStateCol, type
 import { checkAnswer } from './_answer';
 import { makeHint } from './_hint';
 import { getPlan, type PlanChapter } from './_plan';
-import { gateTask, practiceTasks, starsFor, type LockReason } from './_gate';
+import { firstRequiredUnsolved, gateTask, practiceTasks, starsFor, type LockReason } from './_gate';
 
 const MAX_HINTS_PER_DAY = 3;
 const json = (body: unknown, status = 200) =>
@@ -12,11 +12,6 @@ const json = (body: unknown, status = 200) =>
 function authorized(req: Request): boolean {
   const pin = process.env.APP_PIN;
   return !pin || req.headers.get('x-app-pin') === pin;
-}
-/** Parent-only data (solutions, history, reset) needs the parent passcode. */
-function isParent(req: Request): boolean {
-  const code = process.env.CHAPTER_PASSCODE;
-  return !code || req.headers.get('x-parent-code') === code;
 }
 const pid = (level: unknown, chapter: unknown, n: unknown) => `${Number(level)}-c${Number(chapter)}-${Number(n)}`;
 
@@ -39,8 +34,15 @@ async function chapterState(level: number, chapter: PlanChapter) {
   const learnPages = new Set(learnDocs.map((d) => Number(String(d._id).split('-').pop())));
   const learnedTasks = new Set(learnedDocs.filter((d) => d.learned).map((d) => d._id.replace('learn-', '')));
   const lock = new Map<number, LockReason>();
-  for (const t of tasks) for (const [n, r] of gateTask(t, { available, solved, learnPages, learned: learnedTasks.has(t.id) })) lock.set(n, r);
-  return { available, solved, stars, learnPages, learnedTasks, lock };
+  // boxes open in order: a task stays locked until every required problem in the earlier boxes is solved
+  let blockedBy: number | null = null;
+  const learnLock = new Map<string, number>(); // practice tasks whose Learn is also locked (earlier box unfinished)
+  for (const t of tasks) {
+    if (blockedBy !== null && (t.problems ?? []).some((p) => available.has(p.n))) learnLock.set(t.id, blockedBy);
+    for (const [n, r] of gateTask(t, { available, solved, learnPages, learned: learnedTasks.has(t.id), blockedBy })) lock.set(n, r);
+    if (blockedBy === null) blockedBy = firstRequiredUnsolved(t, available, solved);
+  }
+  return { available, solved, stars, learnPages, learnedTasks, lock, learnLock };
 }
 
 const lockedResponse = (r: LockReason) => json({ error: 'locked', ...r }, 403);
@@ -59,30 +61,6 @@ export default async (req: Request): Promise<Response> => {
     const chapter = plan?.chapters.find((c) => c.number === chapterNo);
     if (!chapter) return json({ error: 'level and chapter required' }, 400);
 
-    // Parent review: solutions, tries and history for every problem that was tried.
-    if (q.get('parent') === '1') {
-      if (!isParent(req)) return json({ error: 'wrong_passcode' }, 403);
-      const docs = await problems.find({ level, chapter: chapterNo }).sort({ n: 1 }).toArray();
-      const st = new Map((await states.find({ _id: { $in: docs.map((d) => d._id) } }).toArray()).map((s) => [s._id, s]));
-      const items = docs
-        .filter((d) => st.has(d._id) && ((st.get(d._id)!.history?.length ?? 0) > 0 || st.get(d._id)!.solved))
-        .map((d) => {
-          const s = st.get(d._id)!;
-          return {
-            n: d.n,
-            prompt: d.prompt,
-            answer: d.parts.map((p) => (d.parts.length > 1 ? `${p.label}: ${p.answer}` : p.answer)).join(' · '),
-            solution: d.solution,
-            solutionImages: d.images.solution,
-            solved: s.solved,
-            stars: s.stars ?? 0,
-            tries: s.tries ?? s.history?.filter((h) => h.kind === 'wrong').length ?? 0,
-            history: s.history ?? [],
-          };
-        });
-      return json({ items, total: docs.length });
-    }
-
     const n = q.get('n');
     const cs = await chapterState(level, chapter);
     if (n === null) {
@@ -93,11 +71,25 @@ export default async (req: Request): Promise<Response> => {
         stars: cs.stars,
         learn: [...cs.learnPages],
         learned: [...cs.learnedTasks],
-        lock: Object.fromEntries([...cs.lock].map(([k, v]) => [k, v])),
+        // problem locks keyed by problem number, plus `learn:<taskId>` for a task whose Learn is locked
+        lock: { ...Object.fromEntries([...cs.lock].map(([k, v]) => [k, v])), ...Object.fromEntries([...cs.learnLock].map(([id, need]) => [`learn:${id}`, { reason: 'box', need }])) },
       });
     }
     const p = await problems.findOne({ _id: pid(level, chapterNo, n) });
     if (!p) return json({ error: 'not found' }, 404);
+    // Review (official solution + every try): only once the problem is solved, so it can't be peeked at.
+    if (q.get('review') === '1') {
+      const s = await states.findOne({ _id: p._id });
+      if (!s?.solved) return json({ error: 'not_solved' }, 403);
+      return json({
+        answer: p.parts.map((x) => (p.parts.length > 1 ? `${x.label}: ${x.answer}` : x.answer)).join(' · '),
+        solution: p.solution,
+        solutionImages: p.images.solution,
+        tries: s.tries ?? s.history?.filter((h) => h.kind === 'wrong').length ?? 0,
+        stars: s.stars ?? 3,
+        history: s.history ?? [],
+      });
+    }
     const lock = cs.lock.get(p.n);
     if (lock) return lockedResponse(lock);
     const st = await states.findOne({ _id: p._id });
@@ -130,16 +122,11 @@ export default async (req: Request): Promise<Response> => {
     if (body.action === 'learned') {
       const task = practiceTasks(chapter).find((t) => t.id === String(body.taskId));
       if (!task) return json({ error: 'unknown task' }, 400);
+      const need = (await chapterState(level, chapter)).learnLock.get(task.id);
+      if (need !== undefined) return lockedResponse({ reason: 'box', need });
       await states.updateOne({ _id: `learn-${task.id}` }, { $set: { learned: true, solved: false, attempts: 0 } }, { upsert: true });
       return json({ ok: true });
     }
-    // Parent: clear a problem's tries/history/solved so it can be redone
-    if (body.action === 'reset') {
-      if (!isParent(req)) return json({ error: 'wrong_passcode' }, 403);
-      await states.deleteOne({ _id: pid(level, chapterNo, body.n) });
-      return json({ ok: true });
-    }
-
     const id = pid(level, chapterNo, body.n);
     const p = await problems.findOne({ _id: id });
     if (!p) return json({ error: 'not found' }, 404);

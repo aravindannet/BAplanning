@@ -25,7 +25,20 @@ test('unscanned problems neither lock nor block', () => {
   assert.deepEqual(reasons(g), { 4: 'previous2' });
 });
 
-import { starsFor } from '../netlify/functions/_gate.ts';
+import { starsFor, firstRequiredUnsolved } from '../netlify/functions/_gate.ts';
+
+test('an earlier box that is not finished locks the whole task (box rule beats learn)', () => {
+  assert.deepEqual(reasons({ ...base, learned: true, blockedBy: 17 }), { 1: 'box17', 2: 'box17', 3: 'box17', 4: 'box17' });
+  assert.deepEqual(reasons({ ...base, blockedBy: 17 }), { 1: 'box17', 2: 'box17', 3: 'box17', 4: 'box17' });
+  // already-solved problems stay open
+  assert.deepEqual(reasons({ ...base, learned: true, blockedBy: 17, solved: new Set([1]) }), { 2: 'box17', 3: 'box17', 4: 'box17' });
+});
+test('firstRequiredUnsolved skips dashed, unscanned and solved problems', () => {
+  assert.equal(firstRequiredUnsolved(task, base.available, new Set()), 1);
+  assert.equal(firstRequiredUnsolved(task, base.available, new Set([1, 2])), 4);
+  assert.equal(firstRequiredUnsolved(task, new Set([3]), new Set()), null);
+  assert.equal(firstRequiredUnsolved(task, base.available, new Set([1, 2, 4])), null);
+});
 test('stars: 0-1 wrong = 3, 2 wrong = 2, 3+ wrong = 1', () => {
   assert.equal(starsFor(0), 3);
   assert.equal(starsFor(1), 3);

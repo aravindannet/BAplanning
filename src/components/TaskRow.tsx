@@ -7,12 +7,21 @@ const LABEL = { guide: 'Read the Guide', online: 'Online practice', practice: 'B
  * One task card. Two controls toggle it: the small round checkbox next to the title and the big
  * "Mark as done" button at the bottom. Everything else on the card is information only.
  */
-export function TaskRow({ task, index, done, onToggle, available, solved, onOpenProblem, learn, onOpenLearn, learned, stars, lock }: { task: Task; index: number; done: boolean; onToggle: () => void; available?: Set<number>; solved?: Set<number>; onOpenProblem?: (n: number, list: { n: number; optional: boolean }[]) => void; learn?: Set<number>; onOpenLearn?: (pages: number[], taskId: string) => void; learned?: Set<string>; stars?: Record<string, number>; lock?: Record<string, { reason: 'learn' } | { reason: 'previous'; need: number }> }) {
+function lockWhy(l?: { reason: 'learn' } | { reason: 'previous'; need: number } | { reason: 'box'; need: number }): string | undefined {
+  if (!l) return undefined;
+  if (l.reason === 'learn') return 'Read Learn first';
+  if (l.reason === 'box') return `Finish problem ${l.need} in the earlier box first`;
+  return `Solve problem ${l.need} first`;
+}
+
+export function TaskRow({ task, index, done, onToggle, available, solved, onOpenProblem, learn, onOpenLearn, learned, stars, lock }: { task: Task; index: number; done: boolean; onToggle: () => void; available?: Set<number>; solved?: Set<number>; onOpenProblem?: (n: number, list: { n: number; optional: boolean }[]) => void; learn?: Set<number>; onOpenLearn?: (pages: number[], taskId: string) => void; learned?: Set<string>; stars?: Record<string, number>; lock?: Record<string, { reason: 'learn' } | { reason: 'previous'; need: number } | { reason: 'box'; need: number }> }) {
   // A practice task can't be ticked until every required problem that is in the app is solved.
   // Dashed (optional) problems are never required, and problems without a scan can't block.
   const pending = !done && task.type === 'practice' ? (task.problems ?? []).filter((p) => !p.optional && available?.has(p.n) && !solved?.has(p.n)).length : 0;
   const locked = pending > 0;
+  const tipText = locked ? `🔒 Solve ${pending} more problem${pending > 1 ? 's' : ''} first` : undefined;
   const learnPages = task.type === 'practice' && learn ? (task.pages ?? []).filter((p) => learn.has(p)) : [];
+  const learnLock = lock?.[`learn:${task.id}`];
   const learnPending = learnPages.length > 0 && !learned?.has(task.id);
   const hasOptional = task.problems?.some((p) => p.optional);
   return (
@@ -20,15 +29,19 @@ export function TaskRow({ task, index, done, onToggle, available, solved, onOpen
       <div className="task-banner">
         <span className="task-num">{index + 1}</span>
         <span className="task-label">{LABEL[task.type]}</span>
-          {learnPages.length > 0 && onOpenLearn && (
+          {learnPages.length > 0 && onOpenLearn && (learnLock ? (
+            <span className="tip-wrap learn-wrap" data-tip={`🔒 ${lockWhy(learnLock)}`}>
+              <button className="learn-btn locked" disabled>🔒 Learn</button>
+            </span>
+          ) : (
             <button className={`learn-btn${learnPending ? ' pending' : ''}`} onClick={() => onOpenLearn(learnPages, task.id)}>{learnPending ? '📖 Learn first!' : '📖 Learn'}</button>
-          )}
+          ))}
       </div>
       <div className="task-body">
         <div className="task-head">
-          <button className="check" role="checkbox" aria-checked={done} aria-label={LABEL[task.type]} disabled={locked} title={locked ? `Solve ${pending} more problem${pending > 1 ? 's' : ''} first` : undefined} onClick={onToggle}>
+          <span className="tip-wrap" data-tip={tipText}><button className="check" role="checkbox" aria-checked={done} aria-label={LABEL[task.type]} disabled={locked} onClick={onToggle}>
             {done && <span aria-hidden="true">✓</span>}
-          </button>
+          </button></span>
           <div className="task-main">
             {task.pages
               ? `${task.book ? `Book ${task.book} · ` : ''}${task.pages.length > 1 ? 'pages' : 'page'}`
@@ -54,7 +67,7 @@ export function TaskRow({ task, index, done, onToggle, available, solved, onOpen
                   optional={p.optional}
                   delay={i * 25}
                   state={!available?.has(p.n) ? undefined : solved?.has(p.n) ? 'solved' : lock?.[p.n] ? 'locked' : 'open'}
-                  lockedWhy={lock?.[p.n]?.reason === 'learn' ? 'Read Learn first' : lock?.[p.n] ? `Solve problem ${(lock[p.n] as { need: number }).need} first` : undefined}
+                  lockedWhy={lockWhy(lock?.[p.n])}
                   onOpen={onOpenProblem ? () => onOpenProblem(p.n, task.problems!.filter((x) => available?.has(x.n)).map((x) => ({ n: x.n, optional: x.optional }))) : undefined}
                 />
                 {available?.has(p.n) && <Stars arc earned={solved?.has(p.n) ? stars?.[p.n] ?? 3 : 0} />}
@@ -63,9 +76,9 @@ export function TaskRow({ task, index, done, onToggle, available, solved, onOpen
             </div>
           </>
         )}
-        <button className={`mark${locked ? ' locked' : ''}`} aria-pressed={done} disabled={locked} onClick={onToggle}>
+        <span className="tip-wrap block" data-tip={tipText}><button className={`mark${locked ? ' locked' : ''}`} aria-pressed={done} disabled={locked} onClick={onToggle}>
           {done ? '✓  Done!' : locked ? `🔒  Solve ${pending} more` : '☐  Mark as done'}
-        </button>
+        </button></span>
       </div>
     </div>
   );

@@ -41,7 +41,7 @@ export interface ProblemCoverage {
   learn: number[]; // book pages that have a lesson/example image
   stars: Record<string, number>; // stars earned per solved problem
   learned: string[]; // practice task ids whose Learn was finished
-  lock: Record<string, { reason: 'learn' } | { reason: 'previous'; need: number }>; // locked problems (by number)
+  lock: Record<string, { reason: 'learn' } | { reason: 'previous'; need: number } | { reason: 'box'; need: number }>; // locked problems (by number)
 }
 export interface ProblemView {
   n: number;
@@ -73,19 +73,15 @@ export const learnImageUrl = (level: number, chapter: number, page: number) => p
 export const markLearned = (level: number, chapter: number, taskId: string) =>
   call<{ ok: true }>('/api/problems', { method: 'POST', body: JSON.stringify({ action: 'learned', level, chapter, taskId }) });
 
-export interface ParentItem {
-  n: number;
-  prompt: string;
+export interface Review {
   answer: string;
   solution: string;
   solutionImages: string[];
-  solved: boolean;
-  stars: number;
   tries: number;
+  stars: number;
   history: { at: string; kind: 'wrong' | 'solved'; answers?: Record<string, string>; hint?: string }[];
 }
-export const fetchParent = (level: number, chapter: number, code: string) =>
-  call<{ items: ParentItem[]; total: number }>(`/api/problems?level=${level}&chapter=${chapter}&parent=1`, undefined, { 'x-parent-code': code });
-export const resetProblem = (level: number, chapter: number, n: number, code: string) =>
-  call<{ ok: true }>('/api/problems', { method: 'POST', body: JSON.stringify({ action: 'reset', level, chapter, n }) }, { 'x-parent-code': code });
-export const solutionImageUrl = (id: string, code: string) => `${problemImageUrl(id)}&code=${encodeURIComponent(code)}`;
+/** Official solution + every try, shown after a problem is solved. */
+export const fetchReview = (level: number, chapter: number, n: number) =>
+  call<Review>(`/api/problems?level=${level}&chapter=${chapter}&n=${n}&review=1`);
+export const solutionImageUrl = problemImageUrl;

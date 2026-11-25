@@ -1,8 +1,7 @@
 import type { Config } from '@netlify/functions';
-import { isMongoConfigured, problemImagesCol, problemsCol } from './_mongo';
+import { isMongoConfigured, problemImagesCol, problemsCol, problemStateCol } from './_mongo';
 
-// Serves QUESTION images and lesson pages only. Solution images are never exposed: an id is only served if some
-// problem lists it under images.question.
+// Serves question images, lesson pages, and (once the problem is solved) its solution images.
 export default async (req: Request): Promise<Response> => {
   const pin = process.env.APP_PIN;
   const url = new URL(req.url);
@@ -11,10 +10,13 @@ export default async (req: Request): Promise<Response> => {
   const id = url.searchParams.get('id') ?? '';
   // Lesson pages (`<level>-c<chapter>-learn-<page>`) are the book's examples, not answers, so they are served too.
   const isLearn = /^\d+-c\d+-learn-\d+$/.test(id);
-  // Solution images only for a parent (passcode in `code`; <img> tags can't send headers).
-  const code = process.env.CHAPTER_PASSCODE;
-  const parent = !code || url.searchParams.get('code') === code;
-  const owner = isLearn || (parent && (await (await problemsCol()).findOne({ 'images.solution': id }, { projection: { _id: 1 } }))) || (await (await problemsCol()).findOne({ 'images.question': id }, { projection: { _id: 1 } }));
+  const problems = await problemsCol();
+  // Solution images are served only for a problem the kid has already solved.
+  let owner = isLearn || (await problems.findOne({ 'images.question': id }, { projection: { _id: 1 } }));
+  if (!owner) {
+    const sol = await problems.findOne({ 'images.solution': id }, { projection: { _id: 1 } });
+    owner = sol && (await (await problemStateCol()).findOne({ _id: sol._id, solved: true }, { projection: { _id: 1 } })) ? sol : null;
+  }
   if (!owner) return new Response('not found', { status: 404 });
   const img = await (await problemImagesCol()).findOne({ _id: id });
   if (!img) return new Response('not found', { status: 404 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { PinRequired, fetchCoverage, fetchParent, fetchProgress, resetProblem, type ParentItem, saveChapter, saveTask, setPin } from './api';
+import { PinRequired, fetchCoverage, fetchProgress, saveChapter, saveTask, setPin } from './api';
 import { LEVELS, PLANS, isBoxDone } from './plans';
 import { LevelPicker } from './components/LevelPicker';
 import { Checklist } from './components/Checklist';
@@ -7,7 +7,7 @@ import { CompleteDialog } from './components/CompleteDialog';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { ProblemDialog } from './components/ProblemDialog';
 import { LearnDialog } from './components/LearnDialog';
-import { ParentDialog } from './components/ParentDialog';
+import { Tooltip } from './components/Tooltip';
 import type { Box } from './types';
 
 interface Route {
@@ -33,7 +33,7 @@ export default function App() {
   const [confirm, setConfirm] = useState<{ levelNo: number; chapterNo: number; done: boolean } | null>(null);
 
   // Which problems of the open chapter have their question in the app (and which are solved).
-  const [coverage, setCoverage] = useState<Record<string, { available: Set<number>; solved: Set<number>; learn: Set<number>; learned: Set<string>; stars: Record<string, number>; lock: Record<string, { reason: 'learn' } | { reason: 'previous'; need: number }> }>>({});
+  const [coverage, setCoverage] = useState<Record<string, { available: Set<number>; solved: Set<number>; learn: Set<number>; learned: Set<string>; stars: Record<string, number>; lock: Record<string, { reason: 'learn' } | { reason: 'previous'; need: number } | { reason: 'box'; need: number }> }>>({});
   const [problem, setProblem] = useState<{ level: number; chapter: number; n: number; list: { n: number; optional: boolean }[] } | null>(null);
   const covKey = route.level ? `${route.level}-${route.chapter}` : null;
   const loadCoverage = useCallback(async (level: number, chapter: number) => {
@@ -47,10 +47,8 @@ export default function App() {
   useEffect(() => {
     if (route.level && loaded && !needPin) void loadCoverage(route.level, route.chapter);
   }, [route.level, route.chapter, loaded, needPin, loadCoverage]);
-  const cov = (covKey && coverage[covKey]) || { available: new Set<number>(), solved: new Set<number>(), learn: new Set<number>(), learned: new Set<string>(), stars: {} as Record<string, number>, lock: {} as Record<string, { reason: 'learn' } | { reason: 'previous'; need: number }> };
+  const cov = (covKey && coverage[covKey]) || { available: new Set<number>(), solved: new Set<number>(), learn: new Set<number>(), learned: new Set<string>(), stars: {} as Record<string, number>, lock: {} as Record<string, { reason: 'learn' } | { reason: 'previous'; need: number } | { reason: 'box'; need: number }> };
   const [learnOpen, setLearnOpen] = useState<{ level: number; chapter: number; pages: number[]; taskId: string } | null>(null);
-  const [parentAsk, setParentAsk] = useState<{ error: string | null; busy?: boolean } | null>(null);
-  const [parent, setParent] = useState<{ level: number; chapter: number; code: string; items: ParentItem[]; total: number } | null>(null);
 
   useEffect(() => {
     const onHash = () => {
@@ -150,6 +148,7 @@ export default function App() {
 
   return (
     <>
+      <Tooltip />
       {error && (
         <div className="banner-error" role="alert">
           {error} <button onClick={() => setError(null)}>Dismiss</button>
@@ -173,7 +172,6 @@ export default function App() {
           learned={cov.learned}
           stars={cov.stars}
           lock={cov.lock}
-          onOpenParent={() => setParentAsk({ error: null })}
           onOpenProblem={(n, list) => setProblem({ level: route.level!, chapter: route.chapter, n, list })}
         />
       ) : (
@@ -211,43 +209,6 @@ export default function App() {
           alreadyLearned={(coverage[`${learnOpen.level}-${learnOpen.chapter}`]?.learned ?? new Set<string>()).has(learnOpen.taskId)}
           onLearned={() => void loadCoverage(learnOpen.level, learnOpen.chapter)}
           onClose={() => setLearnOpen(null)}
-        />
-      )}
-      {parentAsk && route.level && (
-        <ConfirmDialog
-          title="Parent area"
-          body="Enter the parent passcode to see solutions, tries and hints."
-          confirmLabel="Open"
-          passcode
-          error={parentAsk.error}
-          busy={parentAsk.busy}
-          onCancel={() => setParentAsk(null)}
-          onConfirm={async (code) => {
-            setParentAsk({ error: null, busy: true });
-            try {
-              const r = await fetchParent(route.level!, route.chapter, code);
-              setParent({ level: route.level!, chapter: route.chapter, code, items: r.items, total: r.total });
-              setParentAsk(null);
-            } catch {
-              setParentAsk({ error: 'Wrong passcode.' });
-            }
-          }}
-        />
-      )}
-      {parent && (
-        <ParentDialog
-          level={parent.level}
-          chapter={parent.chapter}
-          code={parent.code}
-          items={parent.items}
-          total={parent.total}
-          onReset={async (n) => {
-            await resetProblem(parent.level, parent.chapter, n, parent.code);
-            const r = await fetchParent(parent.level, parent.chapter, parent.code);
-            setParent({ ...parent, items: r.items });
-            void loadCoverage(parent.level, parent.chapter);
-          }}
-          onClose={() => setParent(null)}
         />
       )}
       {problem && (

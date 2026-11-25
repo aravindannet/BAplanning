@@ -78,11 +78,10 @@ interface Props {
   onOpenLearn: (pages: number[], taskId: string) => void;
   learned: Set<string>;
   stars: Record<string, number>;
-  lock: Record<string, { reason: 'learn' } | { reason: 'previous'; need: number }>;
-  onOpenParent: () => void;
+  lock: Record<string, { reason: 'learn' } | { reason: 'previous'; need: number } | { reason: 'box'; need: number }>;
 }
 
-export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAll, onNavigate, available, solved, onOpenProblem, learn, onOpenLearn, learned, stars, lock, onOpenParent }: Props) {
+export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAll, onNavigate, available, solved, onOpenProblem, learn, onOpenLearn, learned, stars, lock }: Props) {
   const plan = PLANS[level];
   const chapter = plan.chapters.find((c) => c.number === chapterNo) ?? plan.chapters[0];
   const d = done[level];
@@ -139,7 +138,7 @@ export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAl
                 key={c.id}
                 className={`chapter${c.number === chapter.number ? ' active' : ''}${full ? ' full' : n > 0 ? ' part' : ''}`}
                 style={{ ['--p' as string]: `${(n / c.boxes.length) * 100}%` }}
-                title={`${n} of ${c.boxes.length} boxes done`}
+                data-tip={`${n} of ${c.boxes.length} boxes done`}
                 onClick={() => onNavigate(level, c.number)}
               >
                 <span className="num">{full ? '✓' : c.number}</span>
@@ -163,7 +162,6 @@ export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAl
             <button className={`all-btn${allDone ? ' undo' : ''}`} onClick={() => onChapterAll(chapter.number, !allDone)}>
               {allDone ? '↺ Undo all' : '✓ Complete whole chapter'}
             </button>
-            <button className="parent-btn" onClick={onOpenParent}>👪 Parent</button>
             <div className="xp" role="progressbar" aria-valuemin={0} aria-valuemax={chapter.boxes.length} aria-valuenow={doneCount}>
               <div className="xp-fill" style={{ width: `${pct}%` }} />
               <span key={doneCount}>{doneCount} / {chapter.boxes.length}</span>
@@ -180,7 +178,7 @@ export function Checklist({ level, chapterNo, boxNo, done, onToggle, onChapterAl
                     role="tab"
                     aria-selected={i === idx}
                     aria-label={`Box ${i + 1}: ${b.title}${isDone ? ' (done)' : ''}`}
-                    title={b.title}
+                    data-tip={b.title}
                     className={`dot${isDone ? ' done' : ''}${i === idx ? ' on' : ''}`}
                     onClick={() => onNavigate(level, chapter.number, i + 1)}
                   >
