@@ -1,18 +1,30 @@
 // Hint generation. The model only ever sees the official Beast Academy solution as its method, so
 // hints follow the book's way of thinking instead of the model's own.
 import { problemImagesCol, type ProblemDoc } from './_mongo';
+import { hintProblem } from './_hintRules';
 
 const MODEL = 'claude-haiku-5-5';
 
-const SYSTEM = `You are a friendly Beast Academy tutor helping a child (about age 9-10) who answered a practice problem wrong twice.
-You are given the problem and the OFFICIAL Beast Academy solution.
+const SYSTEM = `You are a friendly Beast Academy tutor helping a child (about age 9-10) who answered a practice problem wrong at least twice.
+You are given the problem and the OFFICIAL Beast Academy solution. The solution is for you only: the child cannot see it, so never mention it.
+Your job is to help the child THINK, not to tell them what to do.
 Rules:
-- Give a HINT only: 1-3 short, encouraging sentences.
-- Use ONLY the method shown in the official solution. Never introduce a different method or shortcut.
-- Never state the final answer and never do the last step for the child. Point to the next idea or the step they should look at again.
-- If the child's wrong answer shows a clear mistake, gently point toward it without saying "wrong".
-- The child cannot see the official solution. Never mention it or "the solution"; talk about the next step or idea in your own words.
-- Plain text only, no markdown, no emojis.`;
+- Follow the official Beast Academy solution you are given. Every hint must lead toward the way of thinking used in that solution, never toward a different method, shortcut, or strategy of your own, even if you know a faster one.
+- Write at most 2 short, encouraging sentences (3 on the third hint) that end with a question for the child to think about.
+- Point to the IDEA behind the problem (for example: does order matter, what is left over, what does the remainder mean).
+- Never tell the child which operation to do (do not say divide, subtract, multiply, add, or "try doing X"), and never state the answer or any part of it.
+- Only use numbers that appear in the problem or in the child's own answer. Never bring in a number from the solution's working (a quotient, remainder, leftover, product, or total).
+- If the child's wrong answer shows a clear mistake, gently make them curious about it without saying "wrong".
+- Plain text only, no markdown, no emojis.
+Examples:
+Bad: "Divide your count by 2 to remove the double counting." Good: "When you counted the line from A to E and the line from E to A, how many different lines was that?"
+Bad: "Subtract 630 from 671 and see how many more 9s fit." Good: "After your first big jump, is there still some left over that could hold more groups?"`;
+
+const LEVEL: Record<number, string> = {
+  1: 'This is the FIRST hint: ask only about the big idea of the problem. Do not mention any specific step.',
+  2: 'This is the SECOND hint: ask the child to look again at one part of their own work where the mistake could be, still as a question, without telling them what to do there.',
+  3: 'This is the THIRD hint: give one more gentle question about the idea, and suggest they talk it through with a grown-up.',
+};
 
 export const FALLBACK_HINT = 'Take another look at the problem and work through it one step at a time. Check the Guide page in your book for a similar example!';
 
@@ -26,39 +38,48 @@ async function imageBlocks(ids: string[]) {
   }));
 }
 
-export async function makeHint(p: ProblemDoc, wrongAnswer: string): Promise<{ hint: string; ai: boolean }> {
+/** Used when the model's hints keep breaking the rules: still a question about the idea, never a step. */
+export const SAFE_HINT = 'Read the question again slowly. What is it really asking you to find, and does your answer make sense for that?';
+
+type Msg = { role: 'user' | 'assistant'; content: unknown };
+
+/** `level` = which hint this is for the problem (1 = first): later hints get a little more specific, never the step. */
+export async function makeHint(p: ProblemDoc, wrongAnswer: string, level = 1): Promise<{ hint: string; ai: boolean }> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return { hint: FALLBACK_HINT, ai: false };
+  const ask = async (messages: Msg[]): Promise<string | null> => {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      // Haiku 5.5 reasons by default (billed as output); a short hint doesn't need it, and it could use up max_tokens.
+      body: JSON.stringify({ model: MODEL, max_tokens: 220, thinking: { type: 'disabled' }, system: SYSTEM, messages }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) {
+      console.error('[hint] anthropic error', res.status, (await res.text()).slice(0, 300));
+      return null;
+    }
+    const data = (await res.json()) as { content?: { type: string; text?: string }[] };
+    return (data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text).join(' ').trim();
+  };
   try {
     const content = [
       { type: 'text', text: `PROBLEM:\n${p.prompt}` },
       ...(await imageBlocks(p.images.question)),
       { type: 'text', text: `OFFICIAL BEAST ACADEMY SOLUTION:\n${p.solution}` },
       ...(await imageBlocks(p.images.solution)),
-      { type: 'text', text: `The child's latest wrong answer: ${wrongAnswer.slice(0, 200)}\n\nWrite the hint now.` },
+      { type: 'text', text: `The child's latest wrong answer: ${wrongAnswer.slice(0, 200)}\n\n${LEVEL[Math.min(Math.max(level, 1), 3)]}\nWrite the hint now.` },
     ];
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      // Haiku 5.5 reasons by default (billed as output); a short hint doesn't need it, and it could use up max_tokens.
-      body: JSON.stringify({ model: MODEL, max_tokens: 220, thinking: { type: 'disabled' }, system: SYSTEM, messages: [{ role: 'user', content }] }),
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) {
-      console.error('[hint] anthropic error', res.status, (await res.text()).slice(0, 300));
-      return { hint: FALLBACK_HINT, ai: false };
-    }
-    const data = (await res.json()) as { content?: { type: string; text?: string }[] };
-    let hint = (data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text).join(' ').trim();
-    // Belt and braces: never leak an answer the model echoed. Whole-token match only ("70" must not
-    // trip on "700"), and only for answers of 3+ characters (a lone digit appears in hints legitimately).
-    for (const part of p.parts) {
-      const a = part.answer.trim();
-      if (a.length < 3) continue;
-      const esc = a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      if (new RegExp(`(?<![\\w.,])${esc}(?![\\w]|[.,]\\d)`, 'i').test(hint)) hint = FALLBACK_HINT;
-    }
-    return { hint: hint || FALLBACK_HINT, ai: Boolean(hint) };
+    const messages: Msg[] = [{ role: 'user', content }];
+    const first = await ask(messages);
+    if (first === null) return { hint: FALLBACK_HINT, ai: false };
+    const why = hintProblem(first, p, wrongAnswer);
+    if (!why) return { hint: first, ai: true };
+    // one retry, telling the model which rule it broke
+    const second = await ask([...messages, { role: 'assistant', content: first }, { role: 'user', content: `That hint breaks a rule: ${why}. Write a new hint that follows every rule.` }]);
+    if (second && !hintProblem(second, p, wrongAnswer)) return { hint: second, ai: true };
+    console.warn('[hint] rules broken twice, using the safe hint:', why);
+    return { hint: SAFE_HINT, ai: false };
   } catch (err) {
     console.error('[hint] failed', err);
     return { hint: FALLBACK_HINT, ai: false };

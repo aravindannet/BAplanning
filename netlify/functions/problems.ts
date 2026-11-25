@@ -159,7 +159,8 @@ export default async (req: Request): Promise<Response> => {
       if (used >= MAX_HINTS_PER_DAY) {
         hintsLeft = false;
       } else {
-        hint = (await makeHint(p, wrongText)).hint;
+        const level = (st?.history?.filter((h) => h.hint).length ?? 0) + 1; // hints already shown for this problem + 1
+        hint = (await makeHint(p, wrongText, level)).hint;
         await states.updateOne({ _id: id }, { $set: { hintDay: today, hintCount: used + 1 } });
       }
     }
