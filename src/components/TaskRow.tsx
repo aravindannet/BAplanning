@@ -1,4 +1,4 @@
-import type { Task } from '../types';
+import { needsParent, type Task } from '../types';
 import { PageIcon, ProblemBadge, Stars } from './icons';
 
 const LABEL = { guide: 'Read the Guide', online: 'Online practice', practice: 'Book practice' } as const;
@@ -24,6 +24,7 @@ export function TaskRow({ task, index, done, onToggle, available, solved, onOpen
   const learnLock = lock?.[`learn:${task.id}`];
   const learnPending = learnPages.length > 0 && !learned?.has(task.id);
   const hasOptional = task.problems?.some((p) => p.optional);
+  const parent = needsParent(task.type); // a grown-up checks this one off with the passcode
   return (
     <div className={`task ${task.type}${done ? ' done' : ''}`}>
       <div className="task-banner">
@@ -77,7 +78,7 @@ export function TaskRow({ task, index, done, onToggle, available, solved, onOpen
           </>
         )}
         <span className="tip-wrap block" data-tip={tipText}><button className={`mark${locked ? ' locked' : ''}`} aria-pressed={done} disabled={locked} onClick={onToggle}>
-          {done ? '✓  Done!' : locked ? `🔒  Solve ${pending} more` : '☐  Mark as done'}
+          {done ? (parent ? '✓  Checked by a grown-up' : '✓  Done!') : locked ? `🔒  Solve ${pending} more` : parent ? '👀  Show a grown-up' : '☐  Mark as done'}
         </button></span>
       </div>
     </div>

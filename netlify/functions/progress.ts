@@ -1,6 +1,7 @@
 import type { Config } from '@netlify/functions';
 import { withMongo, getProgressCollection, isMongoConfigured } from './_mongo';
 import { findTask, getPlan } from './_plan';
+import { needsParent } from '../../src/types';
 import { sendBoxComplete } from './_notify';
 
 const json = (body: unknown, status = 200) =>
@@ -62,6 +63,12 @@ export default withMongo(async (req: Request): Promise<Response> => {
     }
     const found = findTask(plan, taskId);
     if (!found) return json({ error: 'unknown task' }, 400);
+    // Guide reading and online practice can't be checked by the app: the kid shows their work and a parent
+    // ticks (or unticks) it with the passcode. Book practice is ticked by the kid once its problems are solved.
+    if (needsParent(found.task.type)) {
+      const code = process.env.CHAPTER_PASSCODE;
+      if (code && String(body.passcode ?? '') !== code) return json({ error: 'wrong_passcode' }, 403);
+    }
 
     const id = `L${level}`;
     const now = new Date().toISOString();

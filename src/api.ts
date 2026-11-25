@@ -28,10 +28,10 @@ async function call<T>(url: string, init?: RequestInit, extra?: Record<string, s
 
 export const fetchProgress = (level: number) => call<{ done: string[] }>(`/api/progress?level=${level}`);
 
-export const saveTask = (level: number, taskId: string, done: boolean) =>
+export const saveTask = (level: number, taskId: string, done: boolean, passcode?: string) =>
   call<{ done: string[]; completedBox: string | null; emailed: boolean }>('/api/progress', {
     method: 'POST',
-    body: JSON.stringify({ level, taskId, done }),
+    body: JSON.stringify({ level, taskId, done, ...(passcode ? { passcode } : {}) }),
   });
 
 export const saveChapter = (level: number, chapter: number, done: boolean, passcode: string) =>

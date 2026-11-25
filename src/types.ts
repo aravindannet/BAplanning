@@ -1,4 +1,6 @@
 export type TaskType = 'guide' | 'online' | 'practice';
+/** Guide reading and online practice are checked off by a parent (passcode); the app can't check that work. */
+export const needsParent = (t: TaskType) => t === 'guide' || t === 'online';
 
 export interface Task {
   id: string;

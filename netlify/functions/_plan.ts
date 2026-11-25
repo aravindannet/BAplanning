@@ -32,7 +32,8 @@ export function getPlan(level: string): Plan | null {
 export function findTask(plan: Plan, taskId: string) {
   for (const chapter of plan.chapters) {
     for (const box of chapter.boxes) {
-      if (box.tasks.some((t) => t.id === taskId)) return { chapter, box };
+      const task = box.tasks.find((t) => t.id === taskId);
+      if (task) return { chapter, box, task };
     }
   }
   return null;

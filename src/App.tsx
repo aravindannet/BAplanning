@@ -8,7 +8,7 @@ import { ConfirmDialog } from './components/ConfirmDialog';
 import { ProblemDialog } from './components/ProblemDialog';
 import { LearnDialog } from './components/LearnDialog';
 import { Tooltip } from './components/Tooltip';
-import type { Box } from './types';
+import { needsParent, type Box, type Task } from './types';
 
 interface Route {
   level: number | null;
@@ -22,6 +22,18 @@ function parseHash(): Route {
   return { level: level && PLANS[level] ? level : null, chapter: m?.[2] ? Number(m[2]) : 1, box: m?.[3] ? Number(m[3]) : null };
 }
 
+/** 14,15,16,20 -> "14–16, 20" */
+const pageRange = (pages: number[]) =>
+  pages
+    .reduce<number[][]>((runs, n) => {
+      const last = runs[runs.length - 1];
+      if (last && n === last[last.length - 1] + 1) last.push(n);
+      else runs.push([n]);
+      return runs;
+    }, [])
+    .map((r) => (r.length > 1 ? `${r[0]}–${r[r.length - 1]}` : `${r[0]}`))
+    .join(', ');
+
 export default function App() {
   const [route, setRoute] = useState<Route>(parseHash);
   const [done, setDone] = useState<Record<number, Set<string>>>({ 4: new Set(), 5: new Set() });
@@ -31,6 +43,9 @@ export default function App() {
   const [dialog, setDialog] = useState<{ box?: Box; emailed: boolean; levelNo: number; chapterNo: number; whole?: boolean } | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ levelNo: number; chapterNo: number; done: boolean } | null>(null);
+  // a Guide / Online practice task waiting for the parent's passcode
+  const [parentCheck, setParentCheck] = useState<{ level: number; box: Box; task: Task; done: boolean } | null>(null);
+  const [parentBusy, setParentBusy] = useState(false);
 
   // Which problems of the open chapter have their question in the app (and which are solved).
   const [coverage, setCoverage] = useState<Record<string, { available: Set<number>; solved: Set<number>; learn: Set<number>; learned: Set<string>; stars: Record<string, number>; lock: Record<string, { reason: 'learn' } | { reason: 'previous'; need: number } | { reason: 'box'; need: number }> }>>({});
@@ -83,6 +98,12 @@ export default function App() {
 
   const toggle = async (level: number, box: Box, taskId: string) => {
     const next = !done[level].has(taskId);
+    const task = box.tasks.find((t) => t.id === taskId);
+    if (task && needsParent(task.type)) {
+      setConfirmError(null);
+      setParentCheck({ level, box, task, done: next });
+      return;
+    }
     const apply = (on: boolean) =>
       setDone((d) => {
         const s = new Set(d[level]);
@@ -102,6 +123,31 @@ export default function App() {
       apply(!next); // roll back
       if (e instanceof PinRequired) setNeedPin(true);
       else setError((e as Error).message);
+    }
+  };
+
+  // Guide / Online practice: ticked or unticked only with the parent passcode (checked again by the server).
+  const applyParentCheck = async (code: string) => {
+    if (!parentCheck) return;
+    const { level, box, task, done: on } = parentCheck;
+    setParentBusy(true);
+    try {
+      const res = await saveTask(level, task.id, on, code);
+      setParentCheck(null);
+      setDone((d) => ({ ...d, [level]: new Set(res.done) }));
+      if (res.completedBox === box.id) {
+        const chapterNo = PLANS[level].chapters.find((c) => c.boxes.some((b) => b.id === box.id))!.number;
+        setDialog({ box, emailed: res.emailed, levelNo: level, chapterNo });
+      }
+    } catch (e) {
+      if ((e as Error).message === 'wrong_passcode') setConfirmError('Wrong passcode. Ask a grown-up!');
+      else {
+        setParentCheck(null);
+        if (e instanceof PinRequired) setNeedPin(true);
+        else setError((e as Error).message);
+      }
+    } finally {
+      setParentBusy(false);
     }
   };
 
@@ -177,6 +223,30 @@ export default function App() {
       ) : (
         <LevelPicker done={done} onPick={(l) => go(l, 1)} />
       )}
+      {parentCheck && (() => {
+        const { task, done: on } = parentCheck;
+        const what = task.type === 'guide'
+          ? `the Guide${task.pages?.length ? ` (${task.pages.length > 1 ? 'pages' : 'page'} ${pageRange(task.pages)})` : ''}`
+          : `Online practice${task.text ? ` (${task.text})` : ''}`;
+        return (
+          <ConfirmDialog
+            title={on ? '👀 Show a grown-up' : 'Uncheck this?'}
+            body={on
+              ? `Show a grown-up your work for ${what}. The grown-up enters the passcode to check it off.`
+              : `Only a grown-up can uncheck ${what}.`}
+            confirmLabel={on ? '✓ Check it off' : 'Uncheck it'}
+            danger={!on}
+            passcode
+            busy={parentBusy}
+            error={confirmError}
+            onCancel={() => { setParentCheck(null); setConfirmError(null); }}
+            onConfirm={(code) => {
+              setConfirmError(null);
+              void applyParentCheck(code);
+            }}
+          />
+        );
+      })()}
       {confirm && (() => {
         const ch = PLANS[confirm.levelNo].chapters.find((c) => c.number === confirm.chapterNo)!;
         const tasks = ch.boxes.reduce((n, b) => n + b.tasks.length, 0);
