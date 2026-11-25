@@ -273,12 +273,8 @@ button.coin.live { cursor: pointer; transition: transform .15s; }
 button.coin.live:hover { transform: scale(1.1) rotate(-4deg); }
 .coin.locked { cursor: not-allowed; }
 .coin.locked ~ .coin-stars { opacity: .45; }
-/* the medal to do next wears a dashed blue "tap me" ring */
-button.coin.live.open::before { content: ''; position: absolute; left: 50%; top: 49%; width: 120%; aspect-ratio: 1; box-sizing: border-box; translate: -50% -50%; border-radius: 50%; border: calc(3px * var(--s)) dashed var(--blue-nav); animation: ring-spin 14s linear infinite; pointer-events: none; }
-@keyframes ring-spin { to { rotate: 360deg; } }
 .coin.big { width: 56px; animation: none; }
 .coin-wrap .coin { width: calc(54px * var(--s)); }
-@media (prefers-reduced-motion: reduce) { button.coin.live.open::before { animation: none; } }
 
 /* ---------- stars under each problem coin ---------- */
 .coin-wrap { --w: calc(54px * var(--s)); position: relative; display: inline-flex; flex-direction: column; align-items: center; padding-bottom: calc(44px * var(--s)); }
@@ -321,3 +317,9 @@ button.coin.live.open::before { content: ''; position: absolute; left: 50%; top:
 .learn-wrap { margin-left: auto; }
 .learn-wrap .learn-btn { margin-left: 0; }
 .learn-btn.locked { background: #e3e8ef; border-color: #9aa4b2; color: #6b7585; opacity: .85; cursor: not-allowed; pointer-events: none; animation: none; }
+
+/* touch screens: the on-screen keyboard covers the lower half, so the problem box sits at the top and the answer box and Check stay visible */
+@media (hover: none) and (pointer: coarse) {
+  .overlay:has(.dialog.problem) { align-items: start; padding-top: 12px; }
+  .dialog.problem { max-height: calc(100dvh - 24px); }
+}
