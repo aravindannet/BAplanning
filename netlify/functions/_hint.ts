@@ -11,6 +11,7 @@ Rules:
 - Use ONLY the method shown in the official solution. Never introduce a different method or shortcut.
 - Never state the final answer and never do the last step for the child. Point to the next idea or the step they should look at again.
 - If the child's wrong answer shows a clear mistake, gently point toward it without saying "wrong".
+- The child cannot see the official solution. Never mention it or "the solution"; talk about the next step or idea in your own words.
 - Plain text only, no markdown, no emojis.`;
 
 export const FALLBACK_HINT = 'Take another look at the problem and work through it one step at a time. Check the Guide page in your book for a similar example!';
