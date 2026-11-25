@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { PinRequired, checkProblem, fetchProblem, fetchReview, problemImageUrl, solutionImageUrl, type ProblemView, type Review } from '../api';
 import { Beast, Medal, Star } from './icons';
 import { Confetti } from './CompleteDialog';
+import { PuzzleBoard } from './puzzles/PuzzleBoard';
+import type { Cells } from '../../netlify/functions/_puzzle';
 
 interface Props {
   level: number;
@@ -14,7 +16,14 @@ interface Props {
 }
 
 const fmtTime = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-const fmtAnswers = (a?: Record<string, string>) => Object.entries(a ?? {}).map(([k, v]) => (k === 'answer' ? v : `${k}: ${v}`)).join(' · ');
+const fmtAnswers = (a?: Record<string, string>, cells?: Cells) => {
+  const text = Object.entries(a ?? {}).map(([k, v]) => (k === 'answer' ? v : `${k}: ${v}`)).join(' · ');
+  if (!cells) return text;
+  const filled = Object.values(cells).filter((v) => v && v.toUpperCase() !== 'X').length;
+  return `${text ? `${text} · ` : ''}board with ${filled} square${filled === 1 ? '' : 's'} filled`;
+};
+/** Short choices become big buttons; long lists become a dropdown. */
+const asButtons = (choices: string[]) => choices.length <= 4 && choices.every((c) => c.length <= 14);
 
 /**
  * One practice problem. Wrong answers keep the kid on the problem; from the second wrong answer
@@ -29,6 +38,8 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   const [shake, setShake] = useState(0);
   const [msg, setMsg] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  const [hintFrom, setHintFrom] = useState<'book' | 'ai' | undefined>(undefined);
+  const [cells, setCells] = useState<Cells>({});
   const [wrongParts, setWrongParts] = useState<Set<string>>(new Set());
   const first = useRef<HTMLInputElement>(null);
   const [justSolved, setJustSolved] = useState(false); // confetti only for a fresh solve, not when re-opening
@@ -40,6 +51,8 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
     let live = true;
     setP(null);
     setAnswers({});
+    setCells({});
+    setHintFrom(undefined);
     setSolved(false);
     setMsg(null);
     setHint(null);
@@ -87,14 +100,15 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   const idx = list.findIndex((x) => x.n === n);
   const next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
   const afterNext = next?.optional && idx + 2 < list.length ? list[idx + 2] : null; // dashed problems may be skipped
-  const allFilled = p ? p.parts.every((x) => (answers[x.label] ?? '').trim()) : false;
+  const board = p?.kind === 'puzzle' && p.puzzle && p.puzzle.type !== 'logicgrid';
+  const allFilled = p ? (board ? Object.values(cells).some((v) => v) : true) && p.parts.every((x) => (answers[x.label] ?? '').trim()) : false;
 
   const submit = async () => {
     if (!p || busy || !allFilled) return;
     setBusy(true);
     setMsg(null);
     try {
-      const r = await checkProblem(level, chapter, n, answers);
+      const r = await checkProblem(level, chapter, n, answers, p.kind === 'puzzle' ? cells : undefined);
       if (r.correct) {
         setStars(r.stars ?? 3);
         setSolved(true);
@@ -105,8 +119,11 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
       } else {
         setShake((s) => s + 1);
         setWrongParts(new Set((r.results ?? []).filter((x) => !x.ok).map((x) => x.label)));
-        setMsg('Not quite. Try again!');
-        if (r.hint) setHint(r.hint);
+        setMsg(p.kind === 'explain' ? 'Not quite yet. Look at the hint and try again!' : 'Not quite. Try again!');
+        if (r.hint) {
+          setHint(r.hint);
+          setHintFrom(r.hintFrom);
+        }
         else if (r.hintsLeft === false) setMsg('Not quite. You have used all of today’s hints for this one. Ask a grown-up for help!');
       }
     } catch {
@@ -135,6 +152,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
             ))}
             {solved ? (
               <div className="problem-win">
+                {p.puzzle && p.puzzle.type !== 'logicgrid' && (justSolved || review?.solutionCells) && <PuzzleBoard spec={p.puzzle} cells={justSolved ? cells : review?.solutionCells ?? {}} />}
                 <div className="win-stars">{[0, 1, 2].map((i) => <Star key={i} size={i === 1 ? 72 : 56} dim={i >= stars} />)}</div>
                 <h3>{stars === 3 ? 'Perfect!' : 'Correct!'}</h3>
                 {next ? (
@@ -164,14 +182,18 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                             <li key={i} className={h.kind}>
                               <span className="when">{fmtTime(h.at)}</span>
                               <span>
-                                {h.kind === 'solved' ? '✓ Right' : '✗ Wrong'}: <b>{fmtAnswers(h.answers)}</b>
-                                {h.hint && <em className="given-hint">Hint: “{h.hint}”</em>}
+                                {h.kind === 'solved' ? '✓ Right' : '✗ Wrong'}: <b>{fmtAnswers(h.answers, h.cells)}</b>
+                                {h.hint && <em className="given-hint">{h.hintFrom === 'book' ? 'Book hint' : 'Hint'}: “{h.hint}”</em>}
                               </span>
                             </li>
                           ))}
                         </ol>
-                        <h4>Answer</h4>
-                        <p className="parent-ans">{review.answer}</p>
+                        {review.answer && (
+                          <>
+                            <h4>Answer</h4>
+                            <p className="parent-ans">{review.answer}</p>
+                          </>
+                        )}
                         <h4>Solution</h4>
                         <p className="parent-sol">{review.solution}</p>
                         {review.solutionImages.map((id) => <img key={id} className="problem-img" src={solutionImageUrl(id)} alt="Solution" />)}
@@ -189,26 +211,51 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                   void submit();
                 }}
               >
+                {p.puzzle && <PuzzleBoard spec={p.puzzle} cells={cells} onChange={setCells} />}
                 {p.parts.map((part, i) => (
-                  <label key={part.label} className={`answer-row${wrongParts.has(part.label) ? ' bad' : ''}`}>
-                    {p.parts.length > 1 && <span className="part-label">{part.label}</span>}
-                    <input
-                      ref={i === 0 ? first : undefined}
-                      value={answers[part.label] ?? ''}
-                      onChange={(e) => setAnswers({ ...answers, [part.label]: e.target.value })}
-                      inputMode="text"
-                      autoComplete="off"
-                      autoCapitalize="off"
-                      placeholder="Your answer"
-                      aria-label={p.parts.length > 1 ? `Answer ${part.label}` : 'Your answer'}
-                    />
-                  </label>
+                  <div key={part.label} className={`answer-row${wrongParts.has(part.label) ? ' bad' : ''}`}>
+                    {(p.parts.length > 1 || p.puzzle?.type === 'logicgrid') && <span className="part-label">{part.label}</span>}
+                    {part.choices && asButtons(part.choices) ? (
+                      <div className="choices" role="radiogroup" aria-label={part.label}>
+                        {part.choices.map((c) => (
+                          <button key={c} type="button" role="radio" aria-checked={answers[part.label] === c} className={`choice${answers[part.label] === c ? ' on' : ''}`} onClick={() => setAnswers({ ...answers, [part.label]: c })}>
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    ) : part.choices ? (
+                      <select className="choice-select" value={answers[part.label] ?? ''} onChange={(e) => setAnswers({ ...answers, [part.label]: e.target.value })} aria-label={part.label}>
+                        <option value="">Choose…</option>
+                        {part.choices.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    ) : p.kind === 'explain' ? (
+                      <textarea
+                        className="explain"
+                        value={answers[part.label] ?? ''}
+                        onChange={(e) => setAnswers({ ...answers, [part.label]: e.target.value })}
+                        rows={4}
+                        placeholder="Write your answer and explain why"
+                        aria-label="Your explanation"
+                      />
+                    ) : (
+                      <input
+                        ref={i === 0 ? first : undefined}
+                        value={answers[part.label] ?? ''}
+                        onChange={(e) => setAnswers({ ...answers, [part.label]: e.target.value })}
+                        inputMode="text"
+                        autoComplete="off"
+                        autoCapitalize="off"
+                        placeholder="Your answer"
+                        aria-label={p.parts.length > 1 ? `Answer ${part.label}` : 'Your answer'}
+                      />
+                    )}
+                  </div>
                 ))}
                 {msg && <div className="problem-msg" role="status">{msg}</div>}
                 {hint && (
-                  <div className="hint">
+                  <div className={`hint${hintFrom === 'book' ? ' book' : ''}`}>
                     <Beast className="hint-beast" />
-                    <p>{hint}</p>
+                    <p>{hintFrom === 'book' && <b className="hint-from">📘 Hint from the book</b>}{hint}</p>
                   </div>
                 )}
                 <button className="bn primary" type="submit" disabled={!allFilled || busy}>{busy ? 'Checking…' : 'Check'}</button>

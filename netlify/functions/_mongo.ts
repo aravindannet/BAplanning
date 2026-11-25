@@ -1,4 +1,5 @@
 import { MongoClient, type Binary, type Collection, type Db } from 'mongodb';
+import type { Cells, PuzzleSpec } from './_puzzle';
 import dns from 'dns';
 
 // Some ISPs/resolvers can't resolve MongoDB SRV records; same workaround as the other projects.
@@ -45,7 +46,12 @@ export interface ProblemDoc {
   book?: string;
   page?: number;
   prompt: string;
-  parts: { label: string; answer: string; accepted: string[] }[]; // never sent to the browser
+  /** text (typed answers, the default) | puzzle (an interactive board) | explain (written reasoning, judged by the AI) */
+  kind?: 'text' | 'puzzle' | 'explain';
+  parts: { label: string; answer: string; accepted: string[]; choices?: string[] }[]; // answers never sent to the browser
+  puzzle?: PuzzleSpec; // the board layout (public)
+  puzzleSolution?: Cells; // never sent to the browser
+  bookHint?: string; // the book's own hint (★ problems), shown before any AI hint
   solution: string; // never sent to the browser
   images: { question: string[]; solution: string[] }; // ids in problem_images
 }
@@ -58,7 +64,9 @@ export interface HistoryEntry {
   at: string; // ISO time
   kind: 'wrong' | 'solved';
   answers?: Record<string, string>;
+  cells?: Cells; // the board, for puzzles
   hint?: string; // hint shown with this wrong answer
+  hintFrom?: 'book' | 'ai';
 }
 export interface ProblemStateDoc {
   _id: string; // same id as the problem, or `learn-<taskId>` for a finished Learn
@@ -70,6 +78,7 @@ export interface ProblemStateDoc {
   solved: boolean;
   hintDay?: string; // yyyy-mm-dd of hintCount
   hintCount?: number;
+  bookHintShown?: boolean;
 }
 
 export async function getDb(): Promise<Db> {

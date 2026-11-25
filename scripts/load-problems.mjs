@@ -12,9 +12,14 @@ const [file, level, chapter] = args;
 const probs = (await import(path.resolve(file))).default;
 const client = await new MongoClient(process.env.MONGODB_URI).connect();
 const col = client.db(dbName).collection('problems');
+const OPTIONAL = ['kind', 'puzzle', 'puzzleSolution', 'bookHint'];
 for (const p of probs) {
   const _id = `${level}-c${chapter}-${p.n}`;
-  await col.replaceOne({ _id }, { _id, level: Number(level), chapter: Number(chapter), n: p.n, book, page: p.page, prompt: p.prompt, parts: p.parts, solution: p.solution, images: { question: [], solution: [] } }, { upsert: true });
+  const set = { level: Number(level), chapter: Number(chapter), n: p.n, book, page: p.page, prompt: p.prompt, parts: p.parts, solution: p.solution };
+  const unset = {};
+  for (const f of OPTIONAL) if (p[f] !== undefined) set[f] = p[f]; else unset[f] = '';
+  // pictures are linked by the image loaders; a reload keeps them
+  await col.updateOne({ _id }, { $set: set, ...(Object.keys(unset).length ? { $unset: unset } : {}), $setOnInsert: { images: { question: [], solution: [] } } }, { upsert: true });
 }
 await client.close();
 console.log(`loaded ${probs.length} problems into "${dbName}"`);

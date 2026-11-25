@@ -1,7 +1,8 @@
 import type { Config } from '@netlify/functions';
 import { isMongoConfigured, problemImagesCol, problemsCol, problemStateCol, type HistoryEntry } from './_mongo';
 import { checkAnswer } from './_answer';
-import { makeHint } from './_hint';
+import { judgeExplanation, makeHint } from './_hint';
+import { checkPuzzle, describePuzzle, type Cells } from './_puzzle';
 import { getPlan, type PlanChapter } from './_plan';
 import { firstRequiredUnsolved, gateTask, practiceTasks, starsFor, type LockReason } from './_gate';
 
@@ -41,6 +42,12 @@ async function chapterState(level: number, chapter: PlanChapter) {
     if (blockedBy !== null && (t.problems ?? []).some((p) => available.has(p.n))) learnLock.set(t.id, blockedBy);
     for (const [n, r] of gateTask(t, { available, solved, learnPages, learned: learnedTasks.has(t.id), blockedBy })) lock.set(n, r);
     if (blockedBy === null) blockedBy = firstRequiredUnsolved(t, available, solved);
+  }
+  // Testing only (local .env): UNLOCK_ALL=1 opens every problem and every Learn, ignoring the order rules.
+  // Never set this on the live site.
+  if (process.env.UNLOCK_ALL === '1') {
+    lock.clear();
+    learnLock.clear();
   }
   return { available, solved, stars, learnPages, learnedTasks, lock, learnLock };
 }
@@ -88,6 +95,7 @@ export default async (req: Request): Promise<Response> => {
         tries: s.tries ?? s.history?.filter((h) => h.kind === 'wrong').length ?? 0,
         stars: s.stars ?? 3,
         history: s.history ?? [],
+        ...(p.puzzle && p.puzzleSolution ? { solutionCells: p.puzzleSolution } : {}),
       });
     }
     const lock = cs.lock.get(p.n);
@@ -100,14 +108,17 @@ export default async (req: Request): Promise<Response> => {
       page: p.page,
       prompt: p.prompt,
       images: p.images.question,
-      parts: p.parts.map((x) => ({ label: x.label })),
+      kind: p.kind ?? 'text',
+      parts: p.parts.map((x) => ({ label: x.label, ...(x.choices ? { choices: x.choices } : {}) })),
+      ...(p.puzzle ? { puzzle: p.puzzle } : {}),
+      hasBookHint: Boolean(p.bookHint),
       solved: st?.solved ?? false,
       attempts: st?.attempts ?? 0,
     });
   }
 
   if (req.method === 'POST') {
-    let body: { action?: string; level?: unknown; chapter?: unknown; n?: unknown; taskId?: unknown; answers?: Record<string, unknown> };
+    let body: { action?: string; level?: unknown; chapter?: unknown; n?: unknown; taskId?: unknown; answers?: Record<string, unknown>; cells?: Record<string, unknown> };
     try {
       body = await req.json();
     } catch {
@@ -134,13 +145,25 @@ export default async (req: Request): Promise<Response> => {
     const lock = (await chapterState(level, chapter)).lock.get(p.n);
     if (lock) return lockedResponse(lock);
 
-    const answers = Object.fromEntries(Object.entries(body.answers ?? {}).map(([k, v]) => [k, String(v).slice(0, 200)]));
-    const results = p.parts.map((part) => ({ label: part.label, ok: checkAnswer(answers[part.label] ?? '', [part.answer, ...part.accepted]) }));
-    const correct = results.every((r) => r.ok);
+    const kind = p.kind ?? 'text';
+    const answers = Object.fromEntries(Object.entries(body.answers ?? {}).map(([k, v]) => [k, String(v).slice(0, kind === 'explain' ? 1000 : 200)]));
+    const cells: Cells = Object.fromEntries(Object.entries(body.cells ?? {}).slice(0, 200).map(([k, v]) => [String(k).slice(0, 8), String(v).slice(0, 2)]));
+    let results: { label: string; ok: boolean }[] = [];
+    let correct: boolean;
+    let feedback: string | undefined; // the AI's nudge for a written explanation that isn't there yet
+    if (kind === 'explain') {
+      const j = await judgeExplanation(p, answers.answer ?? '');
+      correct = j.ok;
+      feedback = j.feedback;
+    } else {
+      results = p.parts.map((part) => ({ label: part.label, ok: checkAnswer(answers[part.label] ?? '', [part.answer, ...part.accepted]) }));
+      correct = results.every((r) => r.ok) && (kind !== 'puzzle' || !p.puzzle || checkPuzzle(p.puzzle, p.puzzleSolution ?? {}, cells));
+    }
+    const hasCells = kind === 'puzzle' && p.puzzle?.type !== 'logicgrid';
     const now = new Date().toISOString();
 
     if (correct) {
-      const entry: HistoryEntry = { at: now, kind: 'solved', answers };
+      const entry: HistoryEntry = { at: now, kind: 'solved', answers, ...(hasCells ? { cells } : {}) };
       const before = await states.findOne({ _id: id });
       // stars come from the wrong answers since the last solve (a re-solve after Reset starts fresh)
       const stars = before?.solved ? (before.stars ?? 3) : starsFor(before?.attempts ?? 0);
@@ -150,24 +173,38 @@ export default async (req: Request): Promise<Response> => {
 
     const st = await states.findOneAndUpdate({ _id: id }, { $inc: { attempts: 1, tries: 1 } }, { upsert: true, returnDocument: 'after' });
     const attempts = st?.attempts ?? 1;
-    const wrongText = p.parts.map((part, i) => `${part.label}: ${answers[part.label] ?? ''}${results[i].ok ? ' (right)' : ''}`).join('; ');
+    // for a puzzle the hint model sees the layout as part of the problem, and the kid's board as the answer
+    const layout = hasCells && p.puzzle ? describePuzzle(p.puzzle, {}) : '';
+    const wrongText = hasCells && p.puzzle
+      ? describePuzzle(p.puzzle, cells)
+      : p.parts.map((part, i) => `${part.label}: ${answers[part.label] ?? ''}${results[i]?.ok ? ' (right)' : ''}`).join('; ');
     let hint: string | undefined;
+    let hintFrom: 'book' | 'ai' | undefined;
     let hintsLeft = true;
-    if (attempts >= 2) {
+    if (kind === 'explain') {
+      hint = feedback; // every not-yet explanation gets the AI's nudge straight away
+      hintFrom = 'ai';
+    } else if (attempts >= 2 && p.bookHint && !st?.bookHintShown) {
+      // the book's own hint comes first, before any AI hint
+      hint = p.bookHint;
+      hintFrom = 'book';
+      await states.updateOne({ _id: id }, { $set: { bookHintShown: true } });
+    } else if (attempts >= 2) {
       const today = now.slice(0, 10);
       const used = st?.hintDay === today ? (st.hintCount ?? 0) : 0;
       if (used >= MAX_HINTS_PER_DAY) {
         hintsLeft = false;
       } else {
-        const level = (st?.history?.filter((h) => h.hint).length ?? 0) + 1; // hints already shown for this problem + 1
-        hint = (await makeHint(p, wrongText, level)).hint;
+        const level = (st?.history?.filter((h) => h.hint && h.hintFrom !== 'book').length ?? 0) + 1; // AI hints already shown + 1
+        hint = (await makeHint(layout ? { ...p, prompt: `${p.prompt}\n${layout}` } : p, wrongText, level)).hint;
+        hintFrom = 'ai';
         await states.updateOne({ _id: id }, { $set: { hintDay: today, hintCount: used + 1 } });
       }
     }
-    const entry: HistoryEntry = { at: now, kind: 'wrong', answers, ...(hint ? { hint } : {}) };
+    const entry: HistoryEntry = { at: now, kind: 'wrong', answers, ...(hasCells ? { cells } : {}), ...(hint ? { hint, hintFrom } : {}) };
     await states.updateOne({ _id: id }, { $push: { history: entry } });
     // only report which parts were right for multi-part problems
-    return json({ correct: false, results: p.parts.length > 1 ? results : undefined, attempts, hint, hintsLeft });
+    return json({ correct: false, results: p.parts.length > 1 ? results : undefined, attempts, hint, hintFrom, hintsLeft });
   }
 
   return json({ error: 'method not allowed' }, 405);

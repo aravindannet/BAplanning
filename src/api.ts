@@ -1,3 +1,4 @@
+import type { Cells, PuzzleSpec } from '../netlify/functions/_puzzle';
 const PIN_KEY = 'ba.pin';
 
 export const getPin = () => {
@@ -49,7 +50,10 @@ export interface ProblemView {
   page?: number;
   prompt: string;
   images: string[];
-  parts: { label: string }[];
+  kind?: 'text' | 'puzzle' | 'explain';
+  parts: { label: string; choices?: string[] }[];
+  puzzle?: PuzzleSpec;
+  hasBookHint?: boolean;
   solved: boolean;
   attempts: number;
 }
@@ -58,6 +62,7 @@ export interface CheckResult {
   stars?: number;
   attempts: number;
   hint?: string;
+  hintFrom?: 'book' | 'ai';
   hintsLeft?: boolean;
   results?: { label: string; ok: boolean }[];
 }
@@ -65,8 +70,8 @@ export const fetchCoverage = (level: number, chapter: number) =>
   call<ProblemCoverage>(`/api/problems?level=${level}&chapter=${chapter}`);
 export const fetchProblem = (level: number, chapter: number, n: number) =>
   call<ProblemView>(`/api/problems?level=${level}&chapter=${chapter}&n=${n}`);
-export const checkProblem = (level: number, chapter: number, n: number, answers: Record<string, string>) =>
-  call<CheckResult>('/api/problems', { method: 'POST', body: JSON.stringify({ level, chapter, n, answers }) });
+export const checkProblem = (level: number, chapter: number, n: number, answers: Record<string, string>, cells?: Cells) =>
+  call<CheckResult>('/api/problems', { method: 'POST', body: JSON.stringify({ level, chapter, n, answers, cells }) });
 export const problemImageUrl = (id: string) => `/api/problem-image?id=${encodeURIComponent(id)}&pin=${encodeURIComponent(getPin())}`;
 export const learnImageUrl = (level: number, chapter: number, page: number) => problemImageUrl(`${level}-c${chapter}-learn-${page}`);
 
@@ -79,7 +84,8 @@ export interface Review {
   solutionImages: string[];
   tries: number;
   stars: number;
-  history: { at: string; kind: 'wrong' | 'solved'; answers?: Record<string, string>; hint?: string }[];
+  history: { at: string; kind: 'wrong' | 'solved'; answers?: Record<string, string>; cells?: Cells; hint?: string; hintFrom?: 'book' | 'ai' }[];
+  solutionCells?: Cells;
 }
 /** Official solution + every try, shown after a problem is solved. */
 export const fetchReview = (level: number, chapter: number, n: number) =>

@@ -43,32 +43,34 @@ export const SAFE_HINT = 'Read the question again slowly. What is it really aski
 
 type Msg = { role: 'user' | 'assistant'; content: unknown };
 
+async function callModel(key: string, system: string, messages: Msg[], maxTokens = 220): Promise<string | null> {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    // Haiku 5.5 reasons by default (billed as output); a short reply doesn't need it, and it could use up max_tokens.
+    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, thinking: { type: 'disabled' }, system, messages }),
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!res.ok) {
+    console.error('[hint] anthropic error', res.status, (await res.text()).slice(0, 300));
+    return null;
+  }
+  const data = (await res.json()) as { content?: { type: string; text?: string }[] };
+  return (data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text).join(' ').trim();
+}
+
 /** `level` = which hint this is for the problem (1 = first): later hints get a little more specific, never the step. */
 export async function makeHint(p: ProblemDoc, wrongAnswer: string, level = 1): Promise<{ hint: string; ai: boolean }> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return { hint: FALLBACK_HINT, ai: false };
-  const ask = async (messages: Msg[]): Promise<string | null> => {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      // Haiku 5.5 reasons by default (billed as output); a short hint doesn't need it, and it could use up max_tokens.
-      body: JSON.stringify({ model: MODEL, max_tokens: 220, thinking: { type: 'disabled' }, system: SYSTEM, messages }),
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) {
-      console.error('[hint] anthropic error', res.status, (await res.text()).slice(0, 300));
-      return null;
-    }
-    const data = (await res.json()) as { content?: { type: string; text?: string }[] };
-    return (data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text).join(' ').trim();
-  };
+  const ask = (messages: Msg[]) => callModel(key, SYSTEM, messages);
   try {
     const content = [
       { type: 'text', text: `PROBLEM:\n${p.prompt}` },
       ...(await imageBlocks(p.images.question)),
       { type: 'text', text: `OFFICIAL BEAST ACADEMY SOLUTION:\n${p.solution}` },
       ...(await imageBlocks(p.images.solution)),
-      { type: 'text', text: `The child's latest wrong answer: ${wrongAnswer.slice(0, 200)}\n\n${LEVEL[Math.min(Math.max(level, 1), 3)]}\nWrite the hint now.` },
+      { type: 'text', text: `The child's latest wrong answer: ${wrongAnswer.slice(0, 700)}\n\n${LEVEL[Math.min(Math.max(level, 1), 3)]}\nWrite the hint now.` },
     ];
     const messages: Msg[] = [{ role: 'user', content }];
     const first = await ask(messages);
@@ -83,5 +85,41 @@ export async function makeHint(p: ProblemDoc, wrongAnswer: string, level = 1): P
   } catch (err) {
     console.error('[hint] failed', err);
     return { hint: FALLBACK_HINT, ai: false };
+  }
+}
+
+const JUDGE = `You check a written answer from a child (about age 9-10) to a Beast Academy logic question that asks them to explain their thinking.
+You are given the question and the OFFICIAL Beast Academy solution (for you only; the child cannot see it).
+Be generous: accept the answer if it reaches the right conclusion, even if the explanation is short, incomplete, or a little messy.
+Only reject it if the conclusion is wrong, missing, or the reason clearly contradicts the solution.
+Reply with JSON only: {"ok": true} or {"ok": false, "feedback": "..."}.
+The feedback is for the child: 1-2 short, encouraging sentences ending with a question that makes them think about the idea. Never give the answer, never name an operation to do, never mention the solution.`;
+
+export const EXPLAIN_NUDGE = 'Good start! Read the question again: does your answer say what you found, and why it must be true?';
+
+/** Judges a written explanation against the book solution. Partly-right answers that reach the right conclusion pass. */
+export async function judgeExplanation(p: ProblemDoc, text: string): Promise<{ ok: boolean; feedback?: string; ai: boolean }> {
+  const t = text.trim();
+  if (t.length < 2) return { ok: false, feedback: 'Write your answer and a reason in your own words.', ai: false };
+  const key = process.env.ANTHROPIC_API_KEY;
+  // without the AI we can't judge, so a real attempt is accepted rather than blocking the kid
+  if (!key) return { ok: true, ai: false };
+  try {
+    const content = [
+      { type: 'text', text: `QUESTION:\n${p.prompt}` },
+      ...(await imageBlocks(p.images.question)),
+      { type: 'text', text: `OFFICIAL BEAST ACADEMY SOLUTION:\n${p.solution}` },
+      { type: 'text', text: `THE CHILD'S ANSWER:\n${t.slice(0, 1000)}\n\nReply with the JSON now.` },
+    ];
+    const out = await callModel(key, JUDGE, [{ role: 'user', content }], 200);
+    const m = out?.match(/\{[\s\S]*\}/);
+    if (!out || !m) return { ok: true, ai: false };
+    const j = JSON.parse(m[0]) as { ok?: boolean; feedback?: string };
+    if (j.ok) return { ok: true, ai: true };
+    const fb = (j.feedback ?? '').trim();
+    return { ok: false, feedback: fb && !hintProblem(fb, p, t) ? fb : EXPLAIN_NUDGE, ai: true };
+  } catch (err) {
+    console.error('[judge] failed', err);
+    return { ok: true, ai: false };
   }
 }
