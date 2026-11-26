@@ -1,6 +1,6 @@
 // Dev tool: brute-force solver for the Logic-chapter puzzles. Used to compute (and prove unique) the
 // stored solution of each transcribed puzzle, so a transcription slip shows up as 0 or 2+ solutions.
-import { editableCells, conflicts, validateSolution } from '../netlify/functions/_puzzle.ts';
+import { editableCells, conflicts, fracOf, validateSolution } from '../netlify/functions/_puzzle.ts';
 
 function options(spec) {
   switch (spec.type) {
@@ -193,4 +193,109 @@ export function deriveC7(spec) {
   if (spec.type === 'blobs') { const s = solveBlobs(spec); if (!s.length) throw new Error('no solution'); return Object.assign(s[0], { __count: s.length }); }
   if (spec.type === 'sieve') { const out = {}; for (let n = spec.from; n <= spec.to; n++) { let p = n > 1; for (let d = 2; d * d <= n; d++) if (n % d === 0) p = false; out[n] = p ? 'O' : 'X'; } return out; }
   return derive(spec);
+}
+
+// ---- Chapter 8 types ----
+const fsub = (a, b) => [a[0] * b[1] - b[0] * a[1], a[1] * b[1]];
+const feq = (a, b) => a[0] * b[1] === b[0] * a[1];
+
+/** Maze Escape: every skip-counting path from `start` (or from any square if start is null) to the exit. */
+export function solveMaze(spec, start = spec.start) {
+  const R = spec.nums.length, C = spec.nums[0].length;
+  const v = (r, c) => fracOf(spec.nums[r][c]);
+  const out = [];
+  const starts = start ? [start.split(',').map(Number)] : [...Array(R * C)].map((_, i) => [Math.floor(i / C), i % C]);
+  for (const [sr, sc] of starts) {
+    const rec = (path, step) => {
+      const [r, c] = path[path.length - 1];
+      if (k2(r, c) === spec.exit && path.length >= 3) out.push(path.map(([a, b]) => k2(a, b)));
+      for (const [a, b] of [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]) {
+        if (a < 0 || b < 0 || a >= R || b >= C || path.some(([x, y]) => x === a && y === b)) continue;
+        const d = fsub(v(a, b), v(r, c));
+        if (d[0] === 0) continue;
+        if (step && !feq(d, step)) continue;
+        rec([...path, [a, b]], step ?? d);
+      }
+    };
+    rec([[sr, sc]], null);
+  }
+  return out;
+}
+
+/** Fraction-Sum Link: one way to draw every pair (paths found pair by pair, shortest first, with backtracking). */
+export function solveSumLink(spec) {
+  const nums = Object.entries(spec.nums);
+  const target = [spec.target, 1];
+  const add = (a, b) => [a[0] * b[1] + b[0] * a[1], a[1] * b[1]];
+  // the pairing: every number must have exactly one partner that adds to the target
+  const pairs = [];
+  const used = new Set();
+  for (const [k, v] of nums) {
+    if (used.has(k)) continue;
+    const partners = nums.filter(([k2_, v2]) => k2_ !== k && !used.has(k2_) && feq(add(fracOf(v), fracOf(v2)), target));
+    if (partners.length !== 1) throw new Error(`${v} has ${partners.length} possible partners`);
+    used.add(k); used.add(partners[0][0]);
+    pairs.push([k, partners[0][0]]);
+  }
+  const taken = new Set(nums.map(([k]) => k));
+  const cells = {};
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  // all simple routes between a pair's two numbers (bounded length), shortest first
+  const routes = (a, b, limit = 4000) => {
+    const out = [];
+    const [ar, ac] = a.split(',').map(Number);
+    const rec = (path, seen) => {
+      if (out.length >= limit) return;
+      const [r, c] = path[path.length - 1].split(',').map(Number);
+      for (const [x, y] of [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]) {
+        if (x < 0 || y < 0 || x >= spec.rows || y >= spec.cols) continue;
+        const k = k2(x, y);
+        if (k === b) { out.push([...path, k]); continue; }
+        if (taken.has(k) || seen.has(k)) continue;
+        seen.add(k); rec([...path, k], seen); seen.delete(k);
+      }
+    };
+    rec([k2(ar, ac)], new Set([a]));
+    return out.sort((p, q) => p.length - q.length);
+  };
+  const place = (i) => {
+    if (i === pairs.length) return true;
+    for (const route of routes(...pairs[i])) {
+      if (route.slice(1, -1).some((k) => taken.has(k))) continue;
+      route.slice(1, -1).forEach((k) => taken.add(k));
+      route.forEach((k, s) => (cells[k] = `${letters[i]}${s}`));
+      if (place(i + 1)) return true;
+      route.slice(1, -1).forEach((k) => { taken.delete(k); delete cells[k]; });
+    }
+    return false;
+  };
+  if (!place(0)) throw new Error('no way to draw every pair');
+  return cells;
+}
+
+/** Constellation: one path order per group of equal values so that no lines cross or pass through a dot. */
+export function solveConstellation(spec) {
+  const groups = [];
+  spec.dots.forEach((d, i) => { const g = groups.find((gg) => feq(fracOf(spec.dots[gg[0]].v), fracOf(d.v))); if (g) g.push(i); else groups.push([i]); });
+  const perms = (xs) => (xs.length <= 1 ? [xs] : xs.flatMap((x, i) => perms([...xs.slice(0, i), ...xs.slice(i + 1)]).map((p) => [x, ...p])));
+  const orders = groups.map((g) => perms(g).filter((p) => p[0] < p[p.length - 1])); // a path and its reverse are the same
+  const found = [];
+  const rec = (i, lines) => {
+    if (i === groups.length) {
+      const cells = Object.fromEntries(lines.map(([a, b]) => [`${Math.min(a, b)}-${Math.max(a, b)}`, '1']));
+      if (!validateSolution(spec, cells).length) found.push(cells);
+      return;
+    }
+    for (const p of orders[i].length ? orders[i] : [groups[i]]) rec(i + 1, [...lines, ...p.slice(1).map((x, j) => [p[j], x])]);
+  };
+  rec(0, []);
+  if (!found.length) throw new Error('no drawing without crossings');
+  return Object.assign(found[0], { __count: found.length });
+}
+
+export function deriveC8(spec) {
+  if (spec.type === 'maze') { const s = solveMaze(spec); if (s.length !== 1) throw new Error(`${s.length} escape paths`); return Object.fromEntries(s[0].map((k, i) => [k, String(i + 1)])); }
+  if (spec.type === 'sumlink') return solveSumLink(spec);
+  if (spec.type === 'constellation') return solveConstellation(spec);
+  throw new Error(`not a Ch 8 type: ${spec.type}`);
 }

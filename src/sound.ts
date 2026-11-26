@@ -280,7 +280,7 @@ if (testLog) (window as unknown as { __audioEnd: () => void }).__audioEnd = () =
 export function tapSound(el: Element | null): SoundName | null {
   const ctl = el?.closest('button, a[href], [role="button"], [role="checkbox"], [role="radio"], [role="tab"]');
   if (!ctl || (ctl as HTMLButtonElement).disabled || ctl.getAttribute('aria-disabled') === 'true') return null;
-  return ctl.matches('.numkey, .pz-cell, .sv-cell, .choice') ? 'key' : 'click';
+  return ctl.matches('.numkey, .pz-cell, .sv-cell, .st-dot, .choice, .frac-box') ? 'key' : 'click';
 }
 
 

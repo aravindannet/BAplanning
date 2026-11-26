@@ -75,7 +75,7 @@ export function RoughNote({ level, chapter, n, hint, onBack }: { level: number; 
   const [canUndo, setCanUndo] = useState(false);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const [color, setColor] = useState(COLORS[0].c);
-  const [width, setWidth] = useState(WIDTHS[0].w);
+  const [width, setWidth] = useState(WIDTHS[1].w); // thick by default (easier to read on the iPad)
   const [status, setStatus] = useState<'loading' | 'saved' | 'saving' | 'local'>('loading');
   const penSeen = useRef(false);
   const drawing = useRef<{ id: number; s: Stroke | null } | null>(null);

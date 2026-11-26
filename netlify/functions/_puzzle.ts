@@ -24,7 +24,73 @@ export type PuzzleSpec =
   /** Times Table: row 0 holds the column factors, column 0 the row factors; "0,0" is the × corner. */
   | { type: 'timestable'; rows: number; cols: number; givens: Cells }
   /** Sieve of Eratosthenes on from..to: circle ("O") every prime, cross ("X") every other number. Cells keyed by the number. */
-  | { type: 'sieve'; from: number; to: number };
+  | { type: 'sieve'; from: number; to: number }
+  /**
+   * Fraction-Sum Link: connect pairs of numbers whose sum is `target` with paths that go up/down/left/right
+   * through empty squares; one path per square. `nums`: "r,c" -> "1 3/7". Cells: "r,c" -> path letter +
+   * step ("A0", "A1", ...); a path starts and ends on a number.
+   */
+  | { type: 'sumlink'; rows: number; cols: number; nums: Record<string, string>; target: number }
+  /**
+   * Constellation Puzzle: join every group of equal numbers with one path of straight lines. Lines may not
+   * cross or pass through another dot. `dots`: positions in any units. Cells: "i-j" (i < j) -> "1" = a line.
+   */
+  | { type: 'constellation'; dots: { x: number; y: number; v: string }[] }
+  /**
+   * Maze Escape: from the `start` square, skip-count (the same step every move, up/down/left/right) to the
+   * `exit` square, which has the way out on its `exitSide`. Cells: "r,c" -> step number ("1" = start).
+   */
+  | { type: 'maze'; nums: string[][]; start: string; exit: string; exitSide: 'top' | 'bottom' | 'left' | 'right' };
+
+/** "1 3/7", "22/7", "5" -> [numerator, denominator] (exact). NaN parts for anything else. */
+export function fracOf(s: string): [number, number] {
+  const m = s.trim().match(/^(\d+)(?:\s+(\d+)\/(\d+))?$|^(\d+)\/(\d+)$/);
+  if (!m) return [NaN, 1];
+  if (m[4]) return [Number(m[4]), Number(m[5])];
+  if (m[2]) return [Number(m[1]) * Number(m[3]) + Number(m[2]), Number(m[3])];
+  return [Number(m[1]), 1];
+}
+const fracEq = (a: [number, number], b: [number, number]) => a[0] * b[1] === b[0] * a[1];
+const fracAdd = (a: [number, number], b: [number, number]): [number, number] => [a[0] * b[1] + b[0] * a[1], a[1] * b[1]];
+const fracSub = (a: [number, number], b: [number, number]): [number, number] => [a[0] * b[1] - b[0] * a[1], a[1] * b[1]];
+
+/** Sum-link paths on the board: letter -> cell keys in step order (cells with a bad value are ignored). */
+export function linkPaths(cells: Cells): Map<string, string[]> {
+  const m = new Map<string, [number, string][]>();
+  for (const [k, v] of Object.entries(cells)) {
+    const mm = (v ?? '').trim().match(/^([A-Z])(\d+)$/);
+    if (mm) m.set(mm[1], [...(m.get(mm[1]) ?? []), [Number(mm[2]), k]]);
+  }
+  return new Map([...m].map(([id, xs]) => [id, xs.sort((a, b) => a[0] - b[0]).map((x) => x[1])]));
+}
+
+/** Constellation lines on the board: [i, j] pairs. */
+export function starLines(cells: Cells): [number, number][] {
+  return Object.entries(cells).filter(([, v]) => (v ?? '').trim() === '1').map(([k]) => k.split('-').map(Number) as [number, number]).filter(([i, j]) => Number.isInteger(i) && Number.isInteger(j) && i < j);
+}
+
+/** Maze path on the board: cell keys in step order. */
+export function mazePath(cells: Cells): string[] {
+  return Object.entries(cells).filter(([, v]) => /^\d+$/.test((v ?? '').trim())).sort((a, b) => Number(a[1]) - Number(b[1])).map(([k]) => k);
+}
+
+type Pt = { x: number; y: number };
+const cross = (o: Pt, a: Pt, b: Pt) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+/** Do segments ab and cd cross (touching at a shared end does not count)? */
+export function segmentsCross(a: Pt, b: Pt, c: Pt, d: Pt): boolean {
+  const d1 = cross(c, d, a), d2 = cross(c, d, b), d3 = cross(a, b, c), d4 = cross(a, b, d);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+}
+/** Does segment ab pass through point p (not at its ends)? `tol` is in the dots' units. */
+export function passesThrough(a: Pt, b: Pt, p: Pt, tol: number): boolean {
+  const L2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
+  if (!L2) return false;
+  const t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / L2;
+  if (t <= 0.02 || t >= 0.98) return false;
+  return Math.abs(cross(a, b, p)) / Math.sqrt(L2) < tol;
+}
+/** Through-a-dot tolerance: 4% of the board's larger side. */
+const starTol = (dots: Pt[]) => 0.04 * Math.max(Math.max(...dots.map((d) => d.x)) - Math.min(...dots.map((d) => d.x)), Math.max(...dots.map((d) => d.y)) - Math.min(...dots.map((d) => d.y)), 1);
 
 export const key = (r: number, c: number) => `${r},${c}`;
 export const unkey = (k: string) => k.split(',').map(Number) as [number, number];
@@ -88,6 +154,18 @@ export function editableCells(spec: PuzzleSpec): string[] {
     }
     case 'sieve':
       return [...Array(spec.to - spec.from + 1)].map((_, i) => String(spec.from + i));
+    case 'sumlink': {
+      const out: string[] = [];
+      for (let r = 0; r < spec.rows; r++) for (let c = 0; c < spec.cols; c++) out.push(key(r, c));
+      return out;
+    }
+    case 'constellation': {
+      const out: string[] = [];
+      for (let i = 0; i < spec.dots.length; i++) for (let j = i + 1; j < spec.dots.length; j++) out.push(`${i}-${j}`);
+      return out;
+    }
+    case 'maze':
+      return spec.nums.flatMap((row, r) => row.map((_, c) => key(r, c)));
   }
 }
 
@@ -152,11 +230,73 @@ function ruleErrors(spec: PuzzleSpec, cells: Cells): string[] {
       const v = norm(cells[String(n)]);
       if (v !== (isPrime(n) ? 'O' : 'X')) errs.push(`${n} should be ${isPrime(n) ? 'circled' : 'crossed out'}`);
     }
+  } else if (spec.type === 'sumlink') {
+    const used = new Set<string>();
+    for (const [id, ks] of linkPaths(cells)) {
+      if (ks.some((k) => { const [r, c] = unkey(k); return !(r >= 0 && c >= 0 && r < spec.rows && c < spec.cols); })) { errs.push(`path ${id} leaves the grid`); continue; }
+      const steps = ks.map((k) => Number(cells[k].trim().slice(1)));
+      if (steps.some((s, i) => s !== i)) errs.push(`path ${id} skips a step`);
+      if (ks.length < 2) { errs.push(`path ${id} has only one square`); continue; }
+      for (let i = 1; i < ks.length; i++) {
+        const [r1, c1] = unkey(ks[i - 1]), [r2, c2] = unkey(ks[i]);
+        if (Math.abs(r1 - r2) + Math.abs(c1 - c2) !== 1) errs.push(`path ${id} jumps between squares`);
+      }
+      const a = spec.nums[ks[0]], b = spec.nums[ks[ks.length - 1]];
+      if (!a || !b) errs.push(`path ${id} does not end on numbers`);
+      if (ks.slice(1, -1).some((k) => spec.nums[k])) errs.push(`path ${id} goes through a number`);
+      if (a && b && !fracEq(fracAdd(fracOf(a), fracOf(b)), [spec.target, 1])) errs.push(`path ${id}: ${a} + ${b} is not ${spec.target}`);
+      if (a) used.add(ks[0]);
+      if (b) used.add(ks[ks.length - 1]);
+    }
+    const left = Object.keys(spec.nums).filter((k) => !used.has(k));
+    if (left.length) errs.push(`${left.length} numbers are not connected`);
+  } else if (spec.type === 'constellation') {
+    const dots = spec.dots;
+    const lines = starLines(cells).filter(([i, j]) => dots[i] && dots[j]);
+    const tol = starTol(dots);
+    for (const [i, j] of lines) if (!fracEq(fracOf(dots[i].v), fracOf(dots[j].v))) errs.push(`${dots[i].v} and ${dots[j].v} are not equal`);
+    // every group of equal numbers: one path through all its dots (n-1 lines, no dot on 3+ lines, connected)
+    const groups: number[][] = [];
+    dots.forEach((d, i) => { const g = groups.find((gg) => fracEq(fracOf(dots[gg[0]].v), fracOf(d.v))); if (g) g.push(i); else groups.push([i]); });
+    for (const g of groups) {
+      if (g.length < 2) continue;
+      const inG = lines.filter(([i, j]) => g.includes(i) && g.includes(j));
+      const deg = (i: number) => inG.filter(([a, b]) => a === i || b === i).length;
+      const seen = new Set([g[0]]);
+      const stack = [g[0]];
+      while (stack.length) { const x = stack.pop()!; for (const [a, b] of inG) { const y = a === x ? b : b === x ? a : -1; if (y >= 0 && !seen.has(y)) { seen.add(y); stack.push(y); } } }
+      if (inG.length !== g.length - 1 || g.some((i) => deg(i) > 2) || seen.size !== g.length) errs.push(`${dots[g[0]].v} group is not one path`);
+    }
+    for (let a = 0; a < lines.length; a++)
+      for (let b = a + 1; b < lines.length; b++) {
+        const [i, j] = lines[a], [k, l] = lines[b];
+        if (segmentsCross(dots[i], dots[j], dots[k], dots[l])) errs.push(`lines ${i}-${j} and ${k}-${l} cross`);
+      }
+    for (const [i, j] of lines) dots.forEach((p, k) => { if (k !== i && k !== j && passesThrough(dots[i], dots[j], p, tol)) errs.push(`line ${i}-${j} passes through ${p.v}`); });
+  } else if (spec.type === 'maze') {
+    const ks = mazePath(cells);
+    const val = (k: string) => { const [r, c] = unkey(k); return spec.nums[r]?.[c]; };
+    if (ks.some((k) => val(k) == null)) return ['the path leaves the maze'];
+    if (ks.some((k, i) => Number(cells[k].trim()) !== i + 1)) errs.push('the path skips a step');
+    if (ks[0] !== spec.start) errs.push('the path does not begin at the start');
+    if (ks[ks.length - 1] !== spec.exit) errs.push('the path does not reach the exit');
+    for (let i = 1; i < ks.length; i++) {
+      const [r1, c1] = unkey(ks[i - 1]), [r2, c2] = unkey(ks[i]);
+      if (Math.abs(r1 - r2) + Math.abs(c1 - c2) !== 1) errs.push(`step ${i + 1} jumps`);
+    }
+    if (ks.length >= 2) {
+      const step = fracSub(fracOf(val(ks[1])!), fracOf(val(ks[0])!));
+      if (step[0] === 0) errs.push('the path does not count');
+      for (let i = 2; i < ks.length; i++) if (!fracEq(fracSub(fracOf(val(ks[i])!), fracOf(val(ks[i - 1])!)), step)) errs.push(`step ${i + 1} is not the same skip`);
+    }
   }
   return errs;
 }
 
 const norm = (v: string | undefined) => (v ?? '').trim().toUpperCase();
+
+/** Puzzles with more than one correct picture (or where the rule is the answer): the rules decide. */
+const RULE_CHECKED: PuzzleSpec['type'][] = ['blobs', 'pyramid', 'sieve', 'sumlink', 'constellation', 'maze'];
 
 /**
  * Is the kid's board right? Sudoku-like puzzles compare the asked cells (or every open cell) with the
@@ -171,7 +311,7 @@ export function checkPuzzle(spec: PuzzleSpec, solution: Cells, cells: Cells): bo
   }
   if (spec.type === 'logicgrid') return true; // only the answer picks are checked
   // these have more than one correct picture (or the rule is the answer), so the rules decide
-  if (spec.type === 'blobs' || spec.type === 'pyramid' || spec.type === 'sieve') return ruleErrors(spec, cells).length === 0;
+  if (RULE_CHECKED.includes(spec.type)) return ruleErrors(spec, cells).length === 0;
   if (spec.type === 'sudoku' && spec.fill?.length) {
     // every place a fill digit belongs must hold it, and no fill digit may be anywhere else
     return editableCells(spec).every((k) => {
@@ -225,7 +365,20 @@ export function conflicts(spec: PuzzleSpec, cells: Cells): Set<string> {
       }
     return bad;
   }
-  if (spec.type === 'sieve') return bad;
+  if (spec.type === 'sieve' || spec.type === 'sumlink' || spec.type === 'maze') return bad; // the sums and the skips are the puzzle
+  if (spec.type === 'constellation') {
+    // only the drawing rules: lines that cross, or a line through another dot
+    const lines = starLines(cells).filter(([i, j]) => spec.dots[i] && spec.dots[j]);
+    const tol = starTol(spec.dots);
+    const d = spec.dots;
+    for (let a = 0; a < lines.length; a++)
+      for (let b2 = a + 1; b2 < lines.length; b2++) {
+        const [i, j] = lines[a], [k, l] = lines[b2];
+        if (segmentsCross(d[i], d[j], d[k], d[l])) { bad.add(`${i}-${j}`); bad.add(`${k}-${l}`); }
+      }
+    for (const [i, j] of lines) if (d.some((p, k) => k !== i && k !== j && passesThrough(d[i], d[j], p, tol))) bad.add(`${i}-${j}`);
+    return bad;
+  }
   const b = board(spec, cells);
   const val = (k: string) => (b[k] ?? '').trim();
   const dupes = (groups: string[][]) => {
@@ -296,7 +449,7 @@ export function conflicts(spec: PuzzleSpec, cells: Cells): Set<string> {
 
 /** Problems with a stored solution (for the content check): empty list = the solution obeys every rule. */
 export function validateSolution(spec: PuzzleSpec, solution: Cells): string[] {
-  if (spec.type === 'blobs' || spec.type === 'pyramid' || spec.type === 'sieve') return ruleErrors(spec, solution);
+  if (RULE_CHECKED.includes(spec.type)) return ruleErrors(spec, solution);
   const errs: string[] = [];
   if (spec.type === 'timestable') {
     const v = (k: string) => Number((spec.givens[k] ?? solution[k] ?? '').trim());
@@ -389,6 +542,19 @@ export function describePuzzle(spec: PuzzleSpec, cells: Cells): string {
     return `Hive (each hexagon holds the smallest number that does not appear in any hexagon it touches). Hexagons (row, position: value): ${spec.hexes.map(([r, x], i) => `(${r},${x}: ${cell(String(i))})`).join(' ')}`;
   }
   if (spec.type === 'logicgrid' || spec.type === 'sieve') return '';
+  if (spec.type === 'sumlink') {
+    const paths = [...linkPaths(cells).values()].filter((ks) => ks.length >= 2 && spec.nums[ks[0]] && spec.nums[ks[ks.length - 1]]).map((ks) => `${spec.nums[ks[0]]} with ${spec.nums[ks[ks.length - 1]]}`);
+    return `Fraction-Sum Link puzzle, target sum ${spec.target}: connect pairs of numbers that add up to the target with paths through empty squares (up, down, left, right; paths may not cross or share a square). Numbers on the ${spec.rows}×${spec.cols} grid: ${Object.values(spec.nums).join(', ')}.\nPairs the child has connected so far: ${paths.join('; ') || 'none yet'}`;
+  }
+  if (spec.type === 'constellation') {
+    const lines = starLines(cells).filter(([i, j]) => spec.dots[i] && spec.dots[j]).map(([i, j]) => `${spec.dots[i].v} — ${spec.dots[j].v}`);
+    return `Constellation Puzzle: join every group of equal numbers with one path of straight lines that do not cross or pass through another dot. Dots: ${spec.dots.map((d) => d.v).join(', ')}.\nLines the child has drawn: ${lines.join('; ') || 'none yet'}`;
+  }
+  if (spec.type === 'maze') {
+    const [sr, sc] = unkey(spec.start), [er, ec] = unkey(spec.exit);
+    const path = mazePath(cells).map((k) => { const [r, c] = unkey(k); return spec.nums[r]?.[c]; }).filter(Boolean);
+    return `Maze Escape: start at ${spec.nums[sr][sc]} and skip-count (the same step every move, up/down/left/right) to the exit beside ${spec.nums[er][ec]}. Maze rows:\n${spec.nums.map((row) => row.join(' | ')).join('\n')}\nThe child's path so far: ${path.join(' → ') || 'none yet'}`;
+  }
   if (spec.type === 'blobs') {
     const ids = blobGroups(cells);
     return `Factor Blob puzzle, target ${spec.target}. Grid:\n${spec.nums.map((row) => row.join(' ')).join('\n')}\nThe child's blobs: ${[...ids.values()].map((ks) => ks.map((k) => { const [r, c] = unkey(k); return spec.nums[r][c]; }).join('×')).join(' | ') || 'none yet'}`;

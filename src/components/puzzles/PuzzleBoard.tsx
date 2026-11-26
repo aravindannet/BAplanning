@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { conflicts, key, regionOf, type Cells, type PuzzleSpec } from '../../../netlify/functions/_puzzle';
 import { BlobBoard, PyramidBoard, SieveBoard, TimesTableBoard } from './FactorBoards';
+import { ConstellationBoard, MazeBoard, SumLinkBoard } from './PathBoards';
 
 interface Props {
   spec: PuzzleSpec;
@@ -37,6 +38,12 @@ export function PuzzleBoard({ spec, cells, onChange }: Props) {
       return <TimesTableBoard spec={spec} cells={cells} bad={bad} readOnly={readOnly} onChange={(c) => onChange?.(c)} />;
     case 'sieve':
       return <SieveBoard spec={spec} cells={cells} bad={bad} readOnly={readOnly} onChange={(c) => onChange?.(c)} />;
+    case 'sumlink':
+      return <SumLinkBoard spec={spec} cells={cells} bad={bad} readOnly={readOnly} onChange={(c) => onChange?.(c)} />;
+    case 'constellation':
+      return <ConstellationBoard spec={spec} cells={cells} bad={bad} readOnly={readOnly} onChange={(c) => onChange?.(c)} />;
+    case 'maze':
+      return <MazeBoard spec={spec} cells={cells} bad={bad} readOnly={readOnly} onChange={(c) => onChange?.(c)} />;
   }
 }
 

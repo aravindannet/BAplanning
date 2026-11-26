@@ -5,11 +5,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { checkAnswer, padKeys } from '../netlify/functions/_answer.ts';
-import { applyKey } from '../src/pad.ts';
+import { applyKey, fracBoxes, fracText, isFracPad } from '../src/pad.ts';
 import { checkPuzzle, editableCells, validateSolution } from '../netlify/functions/_puzzle.ts';
 
 // [file, last problem, problems not loaded]
-const CHAPTERS = [['ba4-c5.mjs', 147, [97, 122, 123]], ['ba4-c6.mjs', 120, []], ['ba4-c7.mjs', 147, []]];
+const CHAPTERS = [['ba4-c5.mjs', 147, [97, 122, 123]], ['ba4-c6.mjs', 120, []], ['ba4-c7.mjs', 147, []], ['ba4-c8.mjs', 192, []]];
 
 for (const [name, count, missing] of CHAPTERS) {
   const file = new URL(`../problem-data/${name}`, import.meta.url);
@@ -62,7 +62,7 @@ for (const [name, count, missing] of CHAPTERS) {
 
 // Every typed answer can be entered on the on-screen number pad using only the keys it is given
 // (answers with letters get the keyboard instead), and what the pad produces is marked right.
-for (const name of ['ba4-c4.mjs', 'ba4-c5.mjs', 'ba4-c6.mjs', 'ba4-c7.mjs']) {
+for (const name of ['ba4-c4.mjs', 'ba4-c5.mjs', 'ba4-c6.mjs', 'ba4-c7.mjs', 'ba4-c8.mjs']) {
   const file = new URL(`../problem-data/${name}`, import.meta.url);
   const have = fs.existsSync(file);
   test(`${name}: every number answer can be typed on the pad`, { skip: !have }, async () => {
@@ -78,6 +78,12 @@ for (const name of ['ba4-c4.mjs', 'ba4-c5.mjs', 'ba4-c6.mjs', 'ba4-c7.mjs']) {
           continue;
         }
         padded++;
+        if (isFracPad(keys)) {
+          // fractions and mixed numbers go in the whole / top / bottom boxes
+          const typed = fracText(fracBoxes(part.answer));
+          assert.ok(checkAnswer(typed, [part.answer, ...part.accepted]), `#${p.n}: boxes give "${typed}", should be right`);
+          continue;
+        }
         const allowed = new Set(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ...keys]);
         const presses = [...part.answer.replace(/-/g, '−')].filter((ch) => ch.trim());
         for (const ch of presses) assert.ok(allowed.has(ch), `#${p.n}: "${ch}" has no key`);

@@ -536,3 +536,60 @@ textarea.explain { flex: 1; font: 500 20px/1.4 var(--sans); padding: 12px 14px; 
 .dialog.confirm .numpad { display: grid; grid-template-columns: repeat(3, 64px); gap: 10px; justify-content: center; margin: 4px 0 2px; }
 .dialog.confirm .numkey { width: 64px; height: 56px; }
 .dialog.confirm .numkey:nth-child(10) { grid-column: 2; }
+
+/* fractions and mixed numbers drawn the book's way: a whole number beside a stacked fraction */
+.mt-num { display: inline-flex; align-items: center; gap: .08em; vertical-align: middle; white-space: nowrap; margin: 0 .06em; }
+.mt-whole { font-size: 1.05em; }
+.mt-frac { display: inline-flex; flex-direction: column; align-items: stretch; text-align: center; font-size: .78em; line-height: 1.08; }
+.mt-top { border-bottom: .12em solid currentColor; padding: 0 .18em .04em; }
+.mt-bot { padding: .04em .18em 0; }
+.problem-prompt .mt-num { margin: .1em .08em; }
+
+/* fraction answers: a whole-number box beside a top box over a bottom box */
+.frac-in { display: inline-flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px; }
+.frac-in.pad-active { box-shadow: 0 0 0 3px var(--yellow); }
+.frac-stack { display: inline-flex; flex-direction: column; align-items: center; gap: 0; }
+.frac-stack::before { content: ''; order: 1; width: 100%; height: 4px; border-radius: 2px; background: var(--navy); margin: 4px 0; }
+.frac-stack .frac-box.d { order: 2; }
+.answer-row input.frac-box, .dialog.problem .answer-row input.frac-box { flex: none; width: calc(76px * var(--ps, 1)); height: calc(52px * var(--ps, 1)); padding: 0 6px; text-align: center; font-size: calc(26px * var(--ps, 1)); border-width: 3px; border-style: dashed; }
+.answer-row input.frac-box.w { height: calc(64px * var(--ps, 1)); font-size: calc(30px * var(--ps, 1)); }
+.answer-row input.frac-box.on { border-style: solid; border-color: var(--gold-dk); background: #fff8dc; box-shadow: 0 0 0 3px var(--yellow); }
+.answer-row.bad input.frac-box { border-color: var(--red); background: #fdeeee; }
+
+/* path puzzles (Ch 8): Fraction-Sum Link, Maze Escape, Constellations */
+.pl-cell { overflow: visible; touch-action: none; font-size: calc(var(--cs) * .36); color: var(--navy); }
+.pl-cell .v { position: relative; z-index: 1; }
+.pl-num { background: #fffdf6; border-radius: 8px; padding: 1px 3px; }
+.pl-cell.num.in { border-width: 3px; border-style: solid; }
+.pl-arm { position: absolute; --aw: calc(var(--cs) * .16); border-radius: 3px; }
+.pl-arm.up { left: calc(50% - var(--aw) / 2); top: -1px; width: var(--aw); height: calc(50% + var(--aw) / 2); }
+.pl-arm.down { left: calc(50% - var(--aw) / 2); bottom: -1px; width: var(--aw); height: calc(50% + var(--aw) / 2); }
+.pl-arm.left { top: calc(50% - var(--aw) / 2); left: -1px; height: var(--aw); width: calc(50% + var(--aw) / 2); }
+.pl-arm.right { top: calc(50% - var(--aw) / 2); right: -1px; height: var(--aw); width: calc(50% + var(--aw) / 2); }
+.pl-dot { position: absolute; width: calc(var(--cs) * .26); height: calc(var(--cs) * .26); border-radius: 50%; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.pl-cell.cur .pl-dot { box-shadow: 0 0 0 4px var(--yellow); }
+
+.mz-cell { font-size: calc(var(--cs) * .34); }
+.mz-cell.start { background: #d8d4ca; }
+.mz-cell.in { background: #fff1e0; }
+.mz-cell.in .mz-num { background: #fff1e0; border-radius: 6px; padding: 0 2px; }
+.mz-cell.exit::after { content: ''; position: absolute; background: repeating-linear-gradient(45deg, var(--navy) 0 3px, transparent 3px 7px); z-index: 2; }
+.mz-cell.exit-right::after { right: -14px; top: 8%; bottom: 8%; width: 10px; }
+.mz-cell.exit-left::after { left: -14px; top: 8%; bottom: 8%; width: 10px; }
+.mz-cell.exit-top::after { top: -14px; left: 8%; right: 8%; height: 10px; }
+.mz-cell.exit-bottom::after { bottom: -14px; left: 8%; right: 8%; height: 10px; }
+
+.st-sky { position: relative; width: min(calc(520px * var(--ps, 1)), calc(100vw - 80px)); max-height: calc(430px * var(--ps, 1)); background: #fffdf6; border: 4px solid var(--navy); border-radius: 12px; box-shadow: 0 4px 0 rgba(30, 42, 58, .25); }
+.st-sky svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.st-sky line { stroke: var(--blue); stroke-width: 4px; stroke-linecap: round; }
+.st-sky line.bad { stroke: var(--red); }
+.st-dot { position: absolute; transform: translate(-50%, -50%); width: calc(48px * var(--ps, 1)); height: calc(48px * var(--ps, 1)); border-radius: 50%; display: grid; place-items: center; padding: 0; background: transparent; border: 0; }
+.st-pin { width: calc(14px * var(--ps, 1)); height: calc(14px * var(--ps, 1)); border-radius: 50%; background: var(--navy); }
+.st-dot.sel .st-pin { background: var(--gold); box-shadow: 0 0 0 6px var(--yellow); }
+.st-label { position: absolute; bottom: 72%; left: 50%; transform: translateX(-50%); font: 700 calc(20px * var(--ps, 1)) var(--sans); color: var(--navy); white-space: nowrap; pointer-events: none; background: rgba(255, 253, 246, .9); border-radius: 6px; padding: 0 3px; z-index: 1; }
+
+/* the problem window's words (question, hints, solution) can be selected and copied; boards, buttons and the
+   Rough note stay unselectable so dragging and drawing never select the page */
+.dialog.problem .face-front { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+.dialog.problem .face-front button, .dialog.problem .face-front .pz, .dialog.problem .face-front .numpad,
+.dialog.problem .face-front .problem-head, .dialog.problem .face-front .lives { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }

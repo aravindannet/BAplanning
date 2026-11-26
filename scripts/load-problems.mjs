@@ -2,6 +2,7 @@
 //   node --env-file=.env scripts/load-problems.mjs <data.mjs> <level> <chapter> --book 4B [--db name]
 import dns from 'node:dns';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { MongoClient } from 'mongodb';
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 const args = process.argv.slice(2);
@@ -9,7 +10,7 @@ const flag = (n) => { const i = args.indexOf(n); return i === -1 ? null : args.s
 const book = flag('--book');
 const dbName = flag('--db') || process.env.MONGODB_DB || 'beast_academy';
 const [file, level, chapter] = args;
-const probs = (await import(path.resolve(file))).default;
+const probs = (await import(pathToFileURL(path.resolve(file)).href)).default;
 const client = await new MongoClient(process.env.MONGODB_URI).connect();
 const col = client.db(dbName).collection('problems');
 const OPTIONAL = ['kind', 'puzzle', 'puzzleSolution', 'bookHint'];

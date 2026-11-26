@@ -5,7 +5,8 @@ import { Confetti } from './CompleteDialog';
 import { PuzzleBoard } from './puzzles/PuzzleBoard';
 import { ChoicePicker } from './puzzles/ChoicePicker';
 import { NumberPad } from './NumberPad';
-import { applyKey } from '../pad';
+import { EMPTY_FRAC, applyKey, fracText, isFracPad, type FracBoxes } from '../pad';
+import { MathText, copyPlainFractions } from './MathText';
 import { play, useWindowSound } from '../sound';
 import { RoughNote, RoughThumb } from './RoughNote';
 import type { Cells } from '../../netlify/functions/_puzzle';
@@ -55,6 +56,33 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   // number-pad answers: the pad types into the box last tapped (the first one to start with)
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
   const [active, setActive] = useState<string | null>(null);
+  // fraction answers: three boxes per part (whole, top, bottom); the pad types into the box last tapped
+  const [frac, setFrac] = useState<Record<string, FracBoxes>>({});
+  const [fracBox, setFracBox] = useState<keyof FracBoxes>('w');
+  const setFracPart = (label: string, b: FracBoxes) => {
+    setFrac((f) => ({ ...f, [label]: b }));
+    setAnswers((a) => ({ ...a, [label]: fracText(b) }));
+  };
+  /** One of the three boxes of a fraction answer (the pad types into the one last tapped; a real keyboard types too). */
+  const fracInput = (label: string, box: keyof FracBoxes, isFirst = false) => {
+    const b = frac[label] ?? EMPTY_FRAC;
+    const on = (active ?? padParts[0]?.label) === label && fracBox === box;
+    return (
+      <input
+        ref={isFirst ? (el) => { first.current = el; } : undefined}
+        className={`frac-box ${box}${on ? ' on' : ''}`}
+        value={b[box]}
+        onChange={(e) => setFracPart(label, { ...b, [box]: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+        onFocus={() => {
+          setActive(label);
+          setFracBox(box);
+        }}
+        inputMode="none"
+        autoComplete="off"
+        aria-label={box === 'w' ? 'whole number' : box === 'n' ? 'top of the fraction' : 'bottom of the fraction'}
+      />
+    );
+  };
   // The problem must fit on screen without scrolling: step the size down until it does (the solution
   // panel, once opened, may scroll). Re-fit when the content or the window changes.
   const dlg = useRef<HTMLDivElement>(null);
@@ -91,6 +119,8 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
     setHints([]);
     setShowEarlier(false);
     setActive(null);
+    setFrac({});
+    setFracBox('w');
     setWrong(0);
     setBump(null);
     setWrongParts(new Set());
@@ -166,6 +196,12 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
   const padPart = padParts.find((x) => x.label === active) ?? padParts[0];
   const pressKey = (k: string) => {
     if (!padPart) return;
+    if (isFracPad(padPart.pad)) {
+      const b = frac[padPart.label] ?? EMPTY_FRAC;
+      const cur = b[fracBox];
+      setFracPart(padPart.label, { ...b, [fracBox]: k === '⌫' ? cur.slice(0, -1) : (cur + k).slice(0, 4) });
+      return;
+    }
     const el = inputs.current[padPart.label];
     const cur = answers[padPart.label] ?? '';
     let start = el?.selectionStart ?? cur.length, end = el?.selectionEnd ?? cur.length;
@@ -219,7 +255,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
     <div className="overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={`Problem ${n}`}>
       <div ref={dlg} className={`dialog problem${solved && showReview && !notes ? ' scrolls' : ''}${notes ? ' notes' : ''}${flip ? ` flip-${flip}` : ''}${flipped ? ' settled' : ''}`} style={{ ['--ps' as string]: SCALES[fit] }} onClick={(e) => e.stopPropagation()}>
         {notes && <RoughNote level={level} chapter={chapter} n={n} hint={solved ? undefined : latest?.hint} onBack={() => flipTo(false)} />}
-        <div className="face-front" style={notes ? { display: 'none' } : undefined}>
+        <div className="face-front" style={notes ? { display: 'none' } : undefined} onCopy={copyPlainFractions}>
         {solved && justSolved && <Confetti />}
         <button className="x-close" aria-label="Close" onClick={onClose}>{'✕'}</button>
         <div className="problem-head">
@@ -250,7 +286,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
         {!p && msg && <p className="what">{msg}</p>}
         {p && (
           <>
-            <div className="problem-prompt">{p.prompt}</div>
+            <div className="problem-prompt"><MathText text={p.prompt} /></div>
             {p.images.map((id) => (
               <img key={id} className="problem-img" src={problemImageUrl(id)} alt="Problem picture" onLoad={() => { setFit(0); setFitEpoch((e) => e + 1); }} />
             ))}
@@ -286,8 +322,8 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                             <li key={i} className={h.kind}>
                               <span className="when">{fmtTime(h.at)}</span>
                               <span>
-                                {h.kind === 'solved' ? '✓ Right' : '✗ Wrong'}: <b>{fmtAnswers(h.answers, h.cells)}</b>
-                                {h.hint && <em className="given-hint">{h.hintFrom === 'book' ? 'Book hint' : 'Hint'}: “{h.hint}”</em>}
+                                {h.kind === 'solved' ? '✓ Right' : '✗ Wrong'}: <b><MathText text={fmtAnswers(h.answers, h.cells)} /></b>
+                                {h.hint && <em className="given-hint">{h.hintFrom === 'book' ? 'Book hint' : 'Hint'}: “<MathText text={h.hint} />”</em>}
                               </span>
                             </li>
                           ))}
@@ -295,12 +331,12 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                         {review.answer && (
                           <>
                             <h4>Answer</h4>
-                            <p className="parent-ans">{review.answer}</p>
+                            <p className="parent-ans"><MathText text={review.answer} /></p>
                           </>
                         )}
                         <RoughThumb level={level} chapter={chapter} n={n} />
                         <h4>Solution</h4>
-                        <p className="parent-sol">{review.solution}</p>
+                        <p className="parent-sol"><MathText text={review.solution} /></p>
                         {review.solutionImages.map((id) => <img key={id} className="problem-img" src={solutionImageUrl(id)} alt="Solution" />)}
                       </>
                     )}
@@ -330,7 +366,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                               const next = on ? cur.filter((x) => x !== c) : [...cur, c];
                               setAnswers({ ...answers, [part.label]: part.choices!.filter((x) => next.includes(x)).join(', ') });
                             }}>
-                              {c}
+                              <MathText text={c} />
                             </button>
                           );
                         })}
@@ -339,7 +375,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                       <div className="choices" role="radiogroup" aria-label={part.label}>
                         {part.choices.map((c) => (
                           <button key={c} type="button" role="radio" aria-checked={answers[part.label] === c} className={`choice${answers[part.label] === c ? ' on' : ''}`} onClick={() => setAnswers({ ...answers, [part.label]: c })}>
-                            {c}
+                            <MathText text={c} />
                           </button>
                         ))}
                       </div>
@@ -354,6 +390,14 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                         placeholder="Write your answer and explain why"
                         aria-label="Your explanation"
                       />
+                    ) : isFracPad(part.pad) ? (
+                      <span className={`frac-in${padParts.length > 1 && padPart?.label === part.label ? ' pad-active' : ''}`} role="group" aria-label={p.parts.length > 1 ? `Answer ${part.label}` : 'Your answer'}>
+                        {fracInput(part.label, 'w', i === 0)}
+                        <span className="frac-stack">
+                          {fracInput(part.label, 'n')}
+                          {fracInput(part.label, 'd')}
+                        </span>
+                      </span>
                     ) : (
                       <input
                         ref={(el) => {
@@ -374,12 +418,12 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                     )}
                   </div>
                 ))}
-                {padPart && <NumberPad keys={padPart.pad ?? []} onKey={pressKey} />}
+                {padPart && <NumberPad keys={isFracPad(padPart.pad) ? [] : padPart.pad ?? []} onKey={pressKey} />}
                 {msg && <div className="problem-msg" role="status">{msg}</div>}
                 {latest && (
                   <div className={`hint${latest.hintFrom === 'book' ? ' book' : ''}`}>
                     <Beast className="hint-beast" />
-                    <p>{latest.hintFrom === 'book' && <b className="hint-from">📘 Hint from the book</b>}{latest.hint}</p>
+                    <p>{latest.hintFrom === 'book' && <b className="hint-from">📘 Hint from the book</b>}<MathText text={latest.hint} /></p>
                   </div>
                 )}
                 {hints.length > 1 && (
@@ -390,7 +434,7 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                     {showEarlier && (
                       <ol>
                         {hints.slice(0, -1).reverse().map((h, i) => (
-                          <li key={i}>{h.hintFrom === 'book' && <b>📘 </b>}{h.hint}</li>
+                          <li key={i}>{h.hintFrom === 'book' && <b>📘 </b>}<MathText text={h.hint} /></li>
                         ))}
                       </ol>
                     )}

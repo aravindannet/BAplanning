@@ -22,13 +22,16 @@ What the kid sees:
   - Hints already given stay with the problem until it is solved. Reopening the window shows the latest one, older ones sit behind "Earlier hints (n)", and the Rough note has a 💡 Hint button that shows the latest.
   - **Lives row** in the problem header: 2 cartoon hearts (each wrong answer breaks one) and 3 bulbs (each hint lights one). Counts come from the server (`attempts`, `hints`), so they survive reopening; hidden on solved problems. No tooltip (the user asked for none).
   - **Number pad:** typed number answers use an on-screen pad (digits ⌫, plus only the symbol keys the answer needs: `, × ^ ÷ = & / . −`), not the iPad keyboard (`inputMode="none"`; a real keyboard still types). Answers with letters keep the keyboard.
+  - **Fraction answers:** when the only pad symbol is `/` (a fraction or mixed number), the answer is three boxes: whole, top, bottom (`isFracPad`, `fracText` in `src/pad.ts`). The kid taps a box and types digits; the pad has no space key, so mixed numbers could not be typed before.
+  - **Stacked fractions:** every "3/4" and "2 3/4" in prompts, hints, solutions, answers, choice buttons and boards is drawn the book's way (`MathText` / `Frac` in `src/components/MathText.tsx`). Copying stacked fractions gives plain "2 3/4" (`copyPlainFractions`).
 - **Order rules:** a box's problems (and its **Learn** page) open only after every required problem in earlier boxes is solved. Learn must be read first. Then problems open one at a time; dashed (optional) problems never block anything.
 - **Stars:** 3, 2, or 1 star per problem, from the number of wrong answers.
 - **Solved problems:** opening one shows its history: every try, wrong answers, hints (book or AI), the answer, the solution, the final board, and the rough work.
 - **📝 Rough note:** every problem window flips to a grid page for Apple Pencil scratch work. It is auto-saved on the device and to the server, and never deleted.
   - The page scrolls and grows: there is always one blank screen below the lowest writing, up to 4.9 page-widths (about 7 iPad screens).
   - Scrolling: two fingers (before any pencil use, one finger draws); one finger once a pencil has been used (palm rejection); the ▲/▼ buttons; the mouse wheel.
-- **No text selection:** the whole app turns off text selection and the iPad long-press menu, so a held finger or resting pencil can't select the page. Inputs and textareas are still selectable.
+  - The pen starts **thick** (the user asked for it); Thin is one tap away.
+- **Text selection:** off for the app and the iPad long-press menu, so a held finger or resting pencil can't select the page. **On inside the problem window** (question, hints, answer, solution can be selected and copied; the user asked for it), but still off on its buttons, boards, number pad and header, and always off in the Rough note. Inputs and textareas are selectable.
 - **Parent passcode:** "Complete whole chapter" / "Undo all" need it, and so does ticking or unticking a **Guide** or **Online practice** task: the kid shows their work and a grown-up enters the passcode (button "👀 Show a grown-up"; the server checks it too, `needsParent()` in `src/types.ts`). Book practice is ticked by the kid once its problems are solved.
 - **Sounds and music** (`src/sound.ts`, Web Audio): every kind of action has its own sound and the same action always the same one: click (buttons), a low "thock" (pad keys and board cells), pop / pop-down (windows), flip (Rough note), correct, wrong (also a wrong passcode), hint, done, undo, box and chapter fanfares. Background music is a playlist of 4 CC0 tracks by Juhani Junkala (`public/music/`, credits in `CREDITS.txt`), soft under the effects. It starts on the first tap (iPad rule), stops when the app is hidden or the tab closes, follows the iPad volume and silent mode. The 🎵 button in the chapter banner turns **only the music** off (remembered per device, `localStorage ba.music`); clicks keep playing.
 - **Home screen:** the app can be added to the iPad home screen with its own icon (`public/icon.svg`).
@@ -49,6 +52,8 @@ src/
     LearnDialog.tsx               lesson pictures ("Got it!" marks Learn done)
     puzzles/PuzzleBoard.tsx       boards for Ch 6 types (sudoku family, hive, minesweeper, tents, logic chart)
     puzzles/FactorBoards.tsx      boards for Ch 7 types (blobs, pyramid, times table, sieve)
+    puzzles/PathBoards.tsx        boards for Ch 8 types (Fraction-Sum Link, Constellation, Maze Escape)
+    MathText.tsx                  stacked fractions / mixed numbers in any text
     puzzles/ChoicePicker.tsx      themed dropdown (no native <select>)
     Tooltip.tsx, icons.tsx        cartoon tooltip; Medal / Star / Heart / Bulb SVGs
     NumberPad.tsx                 on-screen number pad (answers and the times table); typing logic in src/pad.ts
@@ -134,6 +139,11 @@ Puzzle types (`PuzzleSpec` in `_puzzle.ts`):
 | `pyramid` (Pyramid Descent; with `divisor` = Division Pyramid) | 7, 5 | tap one per row | **rules** (product = `target`, or each block = the one above ÷ `divisor`; touching) |
 | `timestable` (times table puzzles) | 7 | multi-digit pad | stored solution |
 | `sieve` (Sieve of Eratosthenes) | 7 | tap: circle → cross | **rules** (primes circled) |
+| `sumlink` (Fraction-Sum Link; cells `"A0","A1"…` = path letter + step) | 8 | tap or drag from a number, square by square, to its partner; tap a path to rub it out | **rules** (pairs add to `target`, paths step up/down/left/right, never through a number, every number used) |
+| `constellation` (dots at book positions, cells `"i-j"` = a line) | 8 | tap two dots to draw / rub out a line | **rules** (lines only join equal values, each equal group is one path, no crossings, no line through a dot). Only crossings and through-dot lines glow red, never unequal pairs (that is the puzzle) |
+| `maze` (Maze Escape; `start`, `exit`, `exitSide`; cells = step numbers) | 8 | tap from the shaded start to the striped exit; tap a path square to back up | **rules** (same skip every move, adjacent squares, start to exit) |
+
+Fractions on boards are exact: `fracOf("2 3/4")` → `[11, 4]`. The Ch 8 solvers (`solveMaze`, `solveSumLink`, `solveConstellation`, `deriveC8`) prove each board: every maze has one escape path, every constellation one crossing-free drawing, every sum-link one pairing. The scans lost the mazes' shading; each start is the beginning of the only chain that reaches the exit (the book hints for 91 and 92 confirm it).
 
 Squares that break a rule turn red. This uses only the rules, never the answer, so it gives nothing away.
 
@@ -201,6 +211,7 @@ The user scans the practice pages, the solution pages, and the "Hints to Selecte
 3. **Transcribe into `problem-data/`.** Use several smaller files (`c<N>-text-a.mjs`, `c<N>-text-b.mjs`, `c<N>-puzzles.mjs`) plus an assembler `ba4-c<N>.mjs` that merges them, adds puzzle prompts and `bookHint`s, and computes `puzzleSolution` with the solver.
    - **Write solutions as method summaries in your own words.** Do not copy the book's solution text verbatim. Very long verbatim reproduction triggered an "Output blocked by content filtering" error once.
    - Keep `bookHint` text faithful; it is short.
+   - **Every prompt must be answerable on its own:** the app shows the prompt text, not the scanned page. Put the numbers, expressions and word-problem facts in the prompt ("Find the sum: 3/8 + 4/8"), never just "Find the sum." Only a figure that can't be written out gets a question picture (`qimg: true` + `q-<n>.jpg`, linked by the chapter's image loader). Ch 8 was first transcribed without numbers and had to be redone.
    - Mark `kind: 'explain'` for pencil-icon "explain why" problems.
    - "Circle every…" problems become `choices` + `multi`.
 4. **Prove the puzzles.** Every puzzle must solve to **exactly one** answer with the solver, apart from rule-checked types. If it doesn't, the transcription is wrong. Cross-check against the solution pages' final grids. A wall misread in a pentomino or cage is the usual cause; zoom in again.
@@ -255,6 +266,8 @@ The user scans the practice pages, the solution pages, and the "Hints to Selecte
 - **The problem window must not scroll:** it measures itself and steps `--ps` from 1 down to 0.55. Re-fit is triggered by content changes and by image `onLoad`. New UI inside it should size with `calc(… * var(--ps))`.
 - **Home-screen web apps:** iPad home-screen icons must be PNG (`apple-touch-icon.png`), rendered from `public/icon.svg` with `@napi-rs/canvas`. A home-screen app has separate storage from Safari, so it asks for the PIN once.
 - **The dev server sometimes dies** when the shell resets. Restart it with `(nohup npx netlify dev --port 8888 > /tmp/ba-dev.log 2>&1 &)`.
+- **Netlify secrets can't be read back:** `netlify env:get` prints "No value set" for secret variables (APP_PIN, CHAPTER_PASSCODE, ANTHROPIC_API_KEY), though the live site has them. Without `ANTHROPIC_API_KEY` in `.env`, local hints are the fixed `FALLBACK_HINT` ("…Check the Guide page…"), not AI hints. The user adds secrets to `.env` by hand.
+- **Windows:** the project also runs on a Windows PC (Git Bash). `import()` of a plain `D:\…` path fails, so scripts import `pathToFileURL(…).href`. Don't commit the `package-lock.json` churn from a Windows `npm install` (it drops the `libc` fields).
 
 ## 10. Current status
 
@@ -266,6 +279,7 @@ Level 4 problems loaded (dev and prod):
 | 5 Division | 4B | 144 of 147 | 97, 122, 123 not loaded (no auto-checkable answer). Interactive since Nov 2026: Division Pyramids #98–105 (boards, scans hidden), closest estimates #53–64 (tap one), circle-the-numbers #106, 107, 125, 128, 130–132, 134 (tap) |
 | 6 Logic | 4B | 1–120 | 14–18 answers derived (solution pages 128–129 were missing) |
 | 7 Factors | 4C | 1–147 | complete, with hints for 140–147 from page 106 |
+| 8 Fractions (+ & −) | 4C | 1–192 | complete. Boards: mazes 87–94, constellations 125–130, sum-link 171–176. Question pictures: number lines 1–6, 19–22, hexagon 184. Book hints for every ★ problem (page 106) |
 
 Problems that aren't loaded behave normally (no locks, ticked by hand).
 
