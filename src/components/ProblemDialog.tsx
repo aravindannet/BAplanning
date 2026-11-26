@@ -180,6 +180,39 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+  // the opened solution scrolls: a drawn scrollbar (the native one is hidden) follows the scroll position
+  const barTrack = useRef<HTMLDivElement>(null);
+  const barThumb = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = dlg.current;
+    const track = barTrack.current;
+    const thumb = barThumb.current;
+    if (!el || !track || !thumb || !(solved && showReview) || notes) return;
+    // the rail starts below the close button (top) and stops above the window's bottom edge
+    const TOP = 66, BOTTOM = 18; // px
+    const measure = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      const room = scrollHeight - clientHeight;
+      track.style.display = room > 1 ? '' : 'none';
+      if (room <= 1) return;
+      const railH = clientHeight - TOP - BOTTOM;
+      const thumbH = Math.max(48, (railH * clientHeight) / scrollHeight);
+      track.style.top = `${scrollTop + TOP}px`;
+      track.style.height = `${railH}px`;
+      thumb.style.height = `${thumbH}px`;
+      thumb.style.transform = `translateY(${(scrollTop / room) * (railH - thumbH)}px)`;
+    };
+    measure();
+    el.addEventListener('scroll', measure, { passive: true });
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild); // the content grows when the solution opens
+    return () => {
+      el.removeEventListener('scroll', measure);
+      ro.disconnect();
+    };
+  }, [solved, showReview, notes, review]);
+
   useLayoutEffect(() => {
     const el = dlg.current;
     if (!el || notes || (solved && showReview)) return;
@@ -255,9 +288,13 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
     <div className="overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={`Problem ${n}`}>
       <div ref={dlg} className={`dialog problem${solved && showReview && !notes ? ' scrolls' : ''}${notes ? ' notes' : ''}${flip ? ` flip-${flip}` : ''}${flipped ? ' settled' : ''}`} style={{ ['--ps' as string]: SCALES[fit] }} onClick={(e) => e.stopPropagation()}>
         {notes && <RoughNote level={level} chapter={chapter} n={n} hint={solved ? undefined : latest?.hint} onBack={() => flipTo(false)} />}
+        {solved && showReview && !notes && (
+          <div ref={barTrack} className="pb-track" style={{ display: 'none' }} aria-hidden="true">
+            <div ref={barThumb} className="pb-thumb" />
+          </div>
+        )}
         <div className="face-front" style={notes ? { display: 'none' } : undefined} onCopy={copyPlainFractions}>
         {solved && justSolved && <Confetti />}
-        <button className="x-close" aria-label="Close" onClick={onClose}>{'✕'}</button>
         <div className="problem-head">
           <span className="coin big"><Medal n={n} kind={solved ? 'green' : 'gold'} /></span>
           <span className="problem-src">{p?.book ? `Book ${p.book}` : ''}{p?.page ? ` · page ${p.page}` : ''}</span>
@@ -267,20 +304,24 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
               role="img"
               aria-label={`${Math.min(wrong, 2)} of 2 hearts broken, ${Math.min(hints.length, 3)} of 3 hints used`}
             >
-              {[0, 1].map((i) => (
-                <span key={`h${i}`} className={`life${bump?.heart && i === wrong - 1 ? ' just' : ''}`}>
-                  <Heart broken={i < wrong} />
-                </span>
-              ))}
-              <span className="lives-gap" />
-              {[0, 1, 2].map((i) => (
-                <span key={`b${i}`} className={`life${bump?.bulb && i === hints.length - 1 ? ' just' : ''}`}>
-                  <Bulb lit={i < hints.length} />
-                </span>
-              ))}
+              <span className="life-card hearts-card">
+                {[0, 1].map((i) => (
+                  <span key={`h${i}`} className={`life${bump?.heart && i === wrong - 1 ? ' just' : ''}`}>
+                    <Heart broken={i < wrong} />
+                  </span>
+                ))}
+              </span>
+              <span className="life-card hints-card">
+                {[0, 1, 2].map((i) => (
+                  <span key={`b${i}`} className={`life${bump?.bulb && i === hints.length - 1 ? ' just' : ''}`}>
+                    <Bulb lit={i < hints.length} />
+                  </span>
+                ))}
+              </span>
             </span>
           )}
           <button type="button" className="rough-open" onClick={() => flipTo(true)}>📝 Rough note</button>
+          <button className="x-close x-close-head" aria-label="Close" onClick={onClose}>{'✕'}</button>
         </div>
         {!p && !msg && <p className="what">Loading…</p>}
         {!p && msg && <p className="what">{msg}</p>}
@@ -312,31 +353,40 @@ export function ProblemDialog({ level, chapter, n, list, onSolved, onOpen, onClo
                     {!review && !reviewErr && <p className="what">Loading…</p>}
                     {review && (
                       <>
-                        <div className="review-pills">
-                          <span className="pill">{review.tries} {review.tries === 1 ? 'wrong answer' : 'wrong answers'}</span>
-                          <span className="pill">{review.history.filter((h) => h.hint).length} hints</span>
+                        <div className="rv-badges">
+                          <span className="rv-badge rv-badge-wrong"><span aria-hidden="true">💔</span> {review.tries} {review.tries === 1 ? 'wrong answer' : 'wrong answers'}</span>
+                          <span className="rv-badge rv-badge-hint"><span aria-hidden="true">💡</span> {review.history.filter((h) => h.hint).length} hints</span>
                         </div>
-                        <h4>Tries</h4>
-                        <ol className="timeline">
+                        <h4 className="rv-h"><span aria-hidden="true">🧭</span> Your tries</h4>
+                        <ol className="rv-trail">
                           {review.history.map((h, i) => (
-                            <li key={i} className={h.kind}>
-                              <span className="when">{fmtTime(h.at)}</span>
-                              <span>
-                                {h.kind === 'solved' ? '✓ Right' : '✗ Wrong'}: <b><MathText text={fmtAnswers(h.answers, h.cells)} /></b>
-                                {h.hint && <em className="given-hint">{h.hintFrom === 'book' ? 'Book hint' : 'Hint'}: “<MathText text={h.hint} />”</em>}
-                              </span>
+                            <li key={i} className={`rv-step ${h.kind === 'solved' ? 'rv-right' : 'rv-wrong'}`}>
+                              <span className="rv-dot" aria-hidden="true">{h.kind === 'solved' ? '★' : i + 1}</span>
+                              <div className="rv-card">
+                                <div className="rv-top">
+                                  <b className="rv-result">{h.kind === 'solved' ? '✓ Right' : '✗ Wrong'}</b>
+                                  <span className="rv-when">{fmtTime(h.at)}</span>
+                                </div>
+                                <div className="rv-ans"><MathText text={fmtAnswers(h.answers, h.cells)} /></div>
+                                {h.hint && (
+                                  <div className={`rv-hint${h.hintFrom === 'book' ? ' book' : ''}`}>
+                                    <span aria-hidden="true">{h.hintFrom === 'book' ? '📘' : '💡'}</span>
+                                    <span><small>{h.hintFrom === 'book' ? 'Book hint' : 'Hint'}</small><MathText text={h.hint} /></span>
+                                  </div>
+                                )}
+                              </div>
                             </li>
                           ))}
                         </ol>
                         {review.answer && (
-                          <>
-                            <h4>Answer</h4>
-                            <p className="parent-ans"><MathText text={review.answer} /></p>
-                          </>
+                          <div className="rv-trophy">
+                            <span className="rv-trophy-label"><span aria-hidden="true">🏆</span> The answer</span>
+                            <div className="rv-trophy-val"><MathText text={review.answer} /></div>
+                          </div>
                         )}
                         <RoughThumb level={level} chapter={chapter} n={n} />
-                        <h4>Solution</h4>
-                        <p className="parent-sol"><MathText text={review.solution} /></p>
+                        <h4 className="rv-h"><span aria-hidden="true">📖</span> How it works</h4>
+                        <div className="rv-sol"><MathText text={review.solution} /></div>
                         {review.solutionImages.map((id) => <img key={id} className="problem-img" src={solutionImageUrl(id)} alt="Solution" />)}
                       </>
                     )}

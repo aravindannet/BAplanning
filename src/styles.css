@@ -220,7 +220,12 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 
 /* ---------- practice problems ---------- */
 .dialog.problem { padding: 28px 40px 28px; width: 720px; max-height: calc(100dvh - 60px); margin-top: 0; overflow: auto; text-align: left; align-items: stretch; }
-.x-close { position: absolute; top: 10px; right: 14px; font-size: 22px; color: var(--muted); width: 40px; height: 40px; }
+/* the close button: a round yellow cartoon button; it bounces when tapped and wiggles on hover */
+.x-close { position: absolute; top: 12px; right: 16px; z-index: 6; width: 44px; height: 44px; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--yellow); border: 3px solid var(--navy); box-shadow: 0 4px 0 var(--navy); color: var(--navy); font: 800 20px/1 var(--sans); transition: transform .18s cubic-bezier(.2, 1.7, .4, 1), box-shadow .1s; }
+.x-close:active { transform: translateY(3px) scale(.92); box-shadow: 0 1px 0 var(--navy); }
+@media (hover: hover) { .x-close:hover { animation: x-wiggle .55s ease; } }
+@keyframes x-wiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-14deg) scale(1.08); } 50% { transform: rotate(11deg) scale(1.08); } 75% { transform: rotate(-5deg); } }
+@media (prefers-reduced-motion: reduce) { .x-close:hover { animation: none; } }
 .problem-head { display: flex; align-items: center; gap: 14px; }
 .problem-src { color: var(--muted); font-weight: 700; }
 .problem-prompt { font: 500 24px/1.45 var(--sans); white-space: pre-wrap; color: var(--navy); }
@@ -593,3 +598,59 @@ textarea.explain { flex: 1; font: 500 20px/1.4 var(--sans); padding: 12px 14px; 
 .dialog.problem .face-front { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 .dialog.problem .face-front button, .dialog.problem .face-front .pz, .dialog.problem .face-front .numpad,
 .dialog.problem .face-front .problem-head, .dialog.problem .face-front .lives { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+/* the opened solution scrolls inside the problem window: the native scrollbar is hidden and a drawn one
+   (cream rail, gold thumb with a navy outline, like the coins) follows the scroll position. Touch and wheel scroll as before. */
+.dialog.problem.scrolls { scrollbar-width: none; -ms-overflow-style: none; }
+.dialog.problem.scrolls::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.pb-track { position: absolute; right: 6px; top: 0; width: 16px; height: 0; border-radius: 999px; background: #f5f1e6; border: 2px solid var(--navy); box-shadow: inset 0 2px 3px rgba(30, 42, 58, .18); pointer-events: none; z-index: 5; }
+.pb-thumb { position: absolute; left: 0; right: 0; top: 0; border-radius: 999px; background: var(--yellow); border: 2px solid var(--navy); box-shadow: 0 2px 0 var(--navy); transition: transform .08s linear; }
+
+/* the solved problem's review: a trail of tries, a gold trophy for the answer, a notebook for the method */
+.review .rv-h { margin: 14px 0 6px; display: flex; align-items: center; gap: 8px; font: 700 18px var(--slab); color: var(--blue); }
+.rv-badges { display: flex; gap: 10px; flex-wrap: wrap; }
+.rv-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; border: 3px solid var(--navy); box-shadow: 0 3px 0 var(--navy); font: 800 15px var(--sans); color: var(--navy); }
+.rv-badge-wrong { background: #ffe1e1; }
+.rv-badge-hint { background: var(--yellow); }
+
+.rv-trail { list-style: none; margin: 0; padding: 0; position: relative; display: flex; flex-direction: column; gap: 12px; }
+.rv-trail::before { content: ''; position: absolute; left: 19px; top: 22px; bottom: 22px; border-left: 4px dashed var(--silver); }
+.rv-step { position: relative; display: flex; align-items: flex-start; gap: 12px; }
+.rv-dot { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font: 800 18px/1 var(--slab); color: var(--navy); border: 3px solid var(--navy); box-shadow: 0 3px 0 var(--navy); background: #ffe1e1; position: relative; z-index: 1; transform: rotate(-4deg); }
+.rv-right .rv-dot { background: var(--yellow); transform: rotate(6deg); }
+.rv-card { flex: 1; min-width: 0; background: #fff; border: 3px solid var(--navy); border-radius: 16px; padding: 8px 12px; box-shadow: 0 3px 0 rgba(30, 42, 58, .25); }
+.rv-right .rv-card { background: #f1fbea; }
+.rv-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.rv-result { font: 800 15px var(--sans); color: var(--navy); }
+.rv-right .rv-result { color: var(--green-dk); }
+.rv-when { font: 600 13px var(--sans); color: var(--muted); }
+.rv-ans { font: 700 19px var(--sans); color: var(--navy); margin-top: 2px; word-break: break-word; }
+.rv-hint { display: flex; gap: 8px; align-items: flex-start; margin-top: 8px; background: var(--yellow); border: 2px solid var(--navy); border-radius: 12px; padding: 6px 10px; font: 500 15px/1.4 var(--sans); color: var(--navy); }
+.rv-hint.book { background: #dfeeff; }
+.rv-hint small { display: block; font: 800 12px var(--sans); text-transform: uppercase; letter-spacing: .05em; color: var(--blue-nav); }
+
+.rv-trophy { margin: 14px 0 4px; background: linear-gradient(180deg, #ffe58a, var(--gold)); border: 4px solid var(--navy); border-radius: 18px; box-shadow: 0 5px 0 var(--navy); padding: 12px 16px; text-align: center; }
+.rv-trophy-label { font: 800 14px var(--sans); text-transform: uppercase; letter-spacing: .08em; color: var(--gold-text); }
+.rv-trophy-val { font: 800 30px/1.2 var(--slab); color: var(--navy); margin-top: 2px; word-break: break-word; }
+
+.rv-sol { position: relative; margin-top: 4px; background: #fffdf6; border: 3px solid var(--navy); border-radius: 14px; padding: 14px 16px 12px 22px; font: 500 16px/1.55 var(--sans); color: var(--navy); white-space: pre-wrap; box-shadow: 0 3px 0 rgba(30, 42, 58, .25); }
+.rv-sol::before { content: ''; position: absolute; left: 9px; top: 10px; bottom: 10px; border-left: 3px solid #f0a0a8; }
+
+/* the close button lives in the header row, centred with the coin, hearts, bulbs and Rough note */
+.problem-head { min-height: 56px; }
+.problem-head .x-close-head { position: static; flex: none; margin-left: 4px; }
+
+/* the header's small controls: Rough note, hearts and bulbs, and the close button are all the same small size.
+   The coin, the book page and their numbers keep their size. */
+.problem-head .rough-open { margin-right: 0; height: calc(36px * var(--ps, 1)); padding: 0 calc(12px * var(--ps, 1)); border-width: 2px; border-radius: 999px; box-shadow: 0 2px 0 var(--navy); font: 700 calc(14px * var(--ps, 1)) var(--slab); white-space: nowrap; }
+.lives { gap: calc(5px * var(--ps, 1)); }
+.lives-gap { width: calc(6px * var(--ps, 1)); }
+.life svg { width: calc(20px * var(--ps, 1)); height: calc(20px * var(--ps, 1)); }
+.problem-head .x-close-head { width: calc(36px * var(--ps, 1)); height: calc(36px * var(--ps, 1)); font-size: calc(14px * var(--ps, 1)); border-width: 2px; box-shadow: 0 2px 0 var(--navy); }
+.problem-head .x-close-head:active { box-shadow: 0 1px 0 var(--navy); }
+
+/* hearts and hints each sit centred in their own small card */
+.life-card { display: inline-flex; align-items: center; justify-content: center; gap: calc(4px * var(--ps, 1)); height: calc(36px * var(--ps, 1)); padding: 0 calc(10px * var(--ps, 1)); background: #fff; border: 2px solid var(--navy); border-radius: 12px; box-shadow: 0 2px 0 var(--navy); }
+.life-card.hearts-card { background: #fff3f3; }
+.life-card.hints-card { background: #fffbe0; }
+.life-card .life { display: inline-flex; align-items: center; justify-content: center; }
